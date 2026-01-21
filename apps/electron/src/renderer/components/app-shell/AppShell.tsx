@@ -20,6 +20,8 @@ import {
   Inbox,
   Globe,
   FolderOpen,
+  HelpCircle,
+  ExternalLink,
 } from "lucide-react"
 import { PanelRightRounded } from "../icons/PanelRightRounded"
 import { PanelLeftRounded } from "../icons/PanelLeftRounded"
@@ -93,6 +95,8 @@ import { SourcesListPanel } from "./SourcesListPanel"
 import { SkillsListPanel } from "./SkillsListPanel"
 import { PanelHeader } from "./PanelHeader"
 import { EditPopover, getEditConfig } from "@/components/ui/EditPopover"
+import { HelpPopover } from "@/components/ui/HelpPopover"
+import { getDocUrl } from "@craft-agent/shared/docs/doc-links"
 import SettingsNavigator from "@/pages/settings/SettingsNavigator"
 import { RightSidebar } from "./RightSidebar"
 import type { RichTextInputHandle } from "@/components/ui/rich-text-input"
@@ -1263,7 +1267,6 @@ function AppShellContent({
                       icon: Settings,
                       variant: isSettingsNavigation(navState) ? "default" : "ghost",
                       onClick: () => handleSettingsClick('app'),
-                      // No context menu for Settings
                     },
                   ]}
                 />
@@ -1271,8 +1274,46 @@ function AppShellContent({
                 {/* Agents section removed */}
               </div>
 
-              {/* Sidebar Bottom Section: WorkspaceSwitcher */}
-              <div className="mt-auto shrink-0 py-2 px-2">
+              {/* Sidebar Bottom Section: Help + WorkspaceSwitcher */}
+              <div className="mt-auto shrink-0 py-2 px-2 space-y-1">
+                {/* Global Help Button */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="flex w-full items-center gap-2 rounded-[6px] py-[5px] px-2 text-[13px] select-none outline-none hover:bg-foreground/5 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                    >
+                      <HelpCircle className="h-3.5 w-3.5 text-foreground/60" />
+                      <span>Help & Documentation</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <StyledDropdownMenuContent align="start" side="top" sideOffset={8}>
+                    <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocUrl('sources'))}>
+                      <DatabaseZap className="h-3.5 w-3.5" />
+                      <span className="flex-1">Sources</span>
+                      <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                    </StyledDropdownMenuItem>
+                    <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocUrl('skills'))}>
+                      <Zap className="h-3.5 w-3.5" />
+                      <span className="flex-1">Skills</span>
+                      <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                    </StyledDropdownMenuItem>
+                    <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocUrl('statuses'))}>
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span className="flex-1">Statuses</span>
+                      <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                    </StyledDropdownMenuItem>
+                    <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocUrl('permissions'))}>
+                      <Settings className="h-3.5 w-3.5" />
+                      <span className="flex-1">Permissions</span>
+                      <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                    </StyledDropdownMenuItem>
+                    <StyledDropdownMenuSeparator />
+                    <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://agents.craft.do/docs')}>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span className="flex-1">All Documentation</span>
+                    </StyledDropdownMenuItem>
+                  </StyledDropdownMenuContent>
+                </DropdownMenu>
                 <WorkspaceSwitcher
                   isCollapsed={false}
                   workspaces={workspaces}
@@ -1327,6 +1368,10 @@ function AppShellContent({
             <PanelHeader
               title={isSidebarVisible ? listTitle : undefined}
               compensateForStoplight={!isSidebarVisible}
+              badge={
+                // Help icon next to the title only for chat views (Sources/Skills have it in the sidebar)
+                isChatsNavigation(navState) ? <HelpPopover feature="statuses" side="bottom" /> : undefined
+              }
               actions={
                 <>
                   {/* Filter dropdown - allows filtering by todo states (only in All Chats view) */}

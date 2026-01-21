@@ -1714,3 +1714,12 @@ export {
   type ParsedSourceGuide,
   type SourceGuideFrontmatter,
 } from './source-guides.ts';
+
+// Re-export doc links (for UI help popovers)
+export {
+  getDocUrl,
+  getDocInfo,
+  DOCS,
+  type DocFeature,
+  type DocInfo,
+} from './doc-links.ts';

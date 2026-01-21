@@ -1583,6 +1583,9 @@ export class SessionManager {
 
       if (!response.ok) {
         sessionLog.error(`Share failed with status ${response.status}`)
+        if (response.status === 413) {
+          return { success: false, error: 'Session file is too large to share' }
+        }
         return { success: false, error: 'Failed to upload session' }
       }
 
@@ -1644,6 +1647,9 @@ export class SessionManager {
 
       if (!response.ok) {
         sessionLog.error(`Update share failed with status ${response.status}`)
+        if (response.status === 413) {
+          return { success: false, error: 'Session file is too large to share' }
+        }
         return { success: false, error: 'Failed to update shared session' }
       }
 

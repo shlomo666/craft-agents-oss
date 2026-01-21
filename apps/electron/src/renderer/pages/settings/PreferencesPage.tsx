@@ -11,6 +11,7 @@
 import * as React from 'react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { PanelHeader } from '@/components/app-shell/PanelHeader'
+import { HelpPopover } from '@/components/ui/HelpPopover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@craft-agent/ui'
 import {
@@ -194,7 +195,7 @@ export default function PreferencesPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <PanelHeader title="Preferences" />
+      <PanelHeader title="Preferences" actions={<HelpPopover feature="preferences" />} />
       <div className="flex-1 min-h-0 mask-fade-y">
         <ScrollArea className="h-full">
           <div className="px-5 py-7 max-w-3xl mx-auto space-y-6">
