@@ -454,6 +454,10 @@ export class CraftAgent {
   // This enables auto-enabling sources when the agent tries to use their tools.
   public onSourceActivationRequest: ((sourceSlug: string) => Promise<boolean>) | null = null;
 
+  // Callback when the agent explicitly activates a source via the source_activate tool.
+  // Fire-and-forget: handler should activate the source, forceAbort, and trigger auto-retry.
+  public onExplicitSourceActivation: ((sourceSlug: string) => void) | null = null;
+
   constructor(config: CraftAgentConfig) {
     // Resolve model: prioritize session model > config model > DEFAULT_MODEL
     const model = config.session?.model ?? config.model ?? DEFAULT_MODEL;
@@ -497,6 +501,10 @@ export class CraftAgent {
       onAuthRequest: (request) => {
         this.onDebug?.(`[CraftAgent] onAuthRequest received: ${request.sourceSlug} (type: ${request.type})`);
         this.onAuthRequest?.(request);
+      },
+      onSourceActivation: (sourceSlug) => {
+        this.onDebug?.(`[CraftAgent] onSourceActivation received: ${sourceSlug}`);
+        this.onExplicitSourceActivation?.(sourceSlug);
       },
     });
 
@@ -3036,6 +3044,7 @@ Please continue the conversation naturally from where we left off.
     this.onSourcesListChange = null;
     this.onConfigValidationError = null;
     this.onSourceActivationRequest = null;
+    this.onExplicitSourceActivation = null;
 
     // Stop config watcher
     this.stopConfigWatcher();

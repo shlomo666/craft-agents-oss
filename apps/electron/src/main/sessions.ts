@@ -1725,6 +1725,52 @@ export class SessionManager {
         return true
       }
 
+      // Wire up onExplicitSourceActivation for the source_activate tool.
+      // This follows the same pattern as auto-activation but is triggered explicitly by the agent.
+      // It activates the source, forceAborts the current query, and triggers auto-retry via the renderer.
+      managed.agent.onExplicitSourceActivation = (sourceSlug: string) => {
+        sessionLog.info(`Explicit source activation request for session ${managed.id}:`, sourceSlug)
+
+        // Reuse the existing activation handler (async, fire-and-forget from here)
+        managed.agent!.onSourceActivationRequest?.(sourceSlug).then(activated => {
+          if (!activated) {
+            sessionLog.warn(`Explicit activation failed for source ${sourceSlug}`)
+            return
+          }
+
+          sessionLog.info(`Source ${sourceSlug} activated explicitly, triggering auto-retry`)
+
+          // Find the last user message for replay
+          const lastUserMessage = [...managed.messages].reverse().find(m => m.role === 'user')
+          const originalMessage = lastUserMessage?.content || ''
+
+          // forceAbort the current query
+          if (managed.isProcessing && managed.agent) {
+            managed.agent.forceAbort(AbortReason.SourceActivated)
+            managed.isProcessing = false
+
+            // Emit complete event so renderer knows processing stopped
+            this.sendEvent({
+              type: 'complete',
+              sessionId: managed.id,
+              tokenUsage: managed.tokenUsage,
+            }, managed.workspace.id)
+          }
+
+          // Emit source_activated event to trigger auto-retry in the renderer
+          this.sendEvent({
+            type: 'source_activated',
+            sessionId: managed.id,
+            sourceSlug,
+            originalMessage,
+          }, managed.workspace.id)
+
+          this.persistSession(managed)
+        }).catch(err => {
+          sessionLog.error(`Error during explicit source activation for ${sourceSlug}:`, err)
+        })
+      }
+
       // NOTE: Source reloading is now handled by ConfigWatcher callbacks
       // which detect filesystem changes and update all affected sessions.
       // See setupConfigWatcher() for the full reload logic.

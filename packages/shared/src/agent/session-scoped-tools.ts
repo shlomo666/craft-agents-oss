@@ -51,6 +51,7 @@ import {
 } from '../config/storage.ts';
 import {
   loadSourceConfig,
+  loadAllSources,
   saveSourceConfig,
   getSourcePath,
 } from '../sources/storage.ts';
@@ -180,6 +181,13 @@ export interface SessionScopedToolCallbacks {
    * 5. Agent resumes and processes the result
    */
   onAuthRequest?: (request: AuthRequest) => void;
+  /**
+   * Called when the agent explicitly requests source activation via tool.
+   * Fire-and-forget: the handler activates the source, calls forceAbort,
+   * and triggers auto-retry so the new tools are available immediately.
+   * The current query will be terminated and replayed with updated tools.
+   */
+  onSourceActivation?: (sourceSlug: string) => void;
 }
 
 /**
@@ -1989,6 +1997,124 @@ Returns validation result with specific error messages if invalid.`,
 }
 
 // ============================================================
+// Source List Tool
+// ============================================================
+
+/**
+ * Create the source_list tool for listing available workspace sources.
+ */
+export function createSourceListTool(sessionId: string, workspaceRootPath: string) {
+  return tool(
+    'source_list',
+    `List all available sources in the current workspace with their status.
+
+Returns each source's slug, name, type, enabled status, and authentication status.
+Use this to discover which sources are available before activating them.`,
+    {},
+    async () => {
+      try {
+        const sources = loadAllSources(workspaceRootPath);
+        const result = sources.map(s => ({
+          slug: s.config.slug,
+          name: s.config.name,
+          type: s.config.type,
+          provider: s.config.provider,
+          enabled: s.config.enabled,
+          isAuthenticated: s.config.isAuthenticated ?? false,
+          tagline: s.config.tagline || undefined,
+        }));
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error listing sources: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+}
+
+// ============================================================
+// Source Activate Tool
+// ============================================================
+
+/**
+ * Create the source_activate tool for explicitly activating a source in the current session.
+ *
+ * This triggers the forceAbort + auto-retry flow:
+ * 1. Tool fires the onSourceActivation callback (fire-and-forget)
+ * 2. Session manager activates source, builds MCP servers
+ * 3. Session manager calls forceAbort(SourceActivated)
+ * 4. Renderer receives source_activated event and auto-retries the message
+ * 5. New query starts with the source's tools available
+ *
+ * The tool result doesn't matter since forceAbort kills the current query.
+ */
+export function createSourceActivateTool(sessionId: string, workspaceRootPath: string) {
+  return tool(
+    'source_activate',
+    `Activate a source in the current session, making its tools available.
+
+After activation, MCP/API tools from the source will be available on the next message exchange.
+Use source_list first to discover available sources.
+
+**IMPORTANT:** After calling this tool:
+- The source's tools will NOT be available in the current turn
+- They will be loaded on the next message exchange
+- The UI will update to show the source as active immediately`,
+    {
+      sourceSlug: z.string().describe('The slug of the source to activate (from source_list)'),
+    },
+    async (args) => {
+      try {
+        const callbacks = getSessionScopedToolCallbacks(sessionId);
+
+        if (!callbacks?.onSourceActivation) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: 'Error: No source activation handler available.',
+            }],
+            isError: true,
+          };
+        }
+
+        // Fire-and-forget: the handler will activate the source,
+        // call forceAbort, and trigger auto-retry via the renderer.
+        // This query will be killed and replayed with updated tools.
+        callbacks.onSourceActivation(args.sourceSlug);
+
+        // This return may never reach the SDK since forceAbort kills the query,
+        // but we return a message just in case the activation is still in progress.
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Source "${args.sourceSlug}" activation requested. Reloading with updated tools...`,
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error activating source: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+}
+
+// ============================================================
 // Session-Scoped Tools Provider
 // ============================================================
 
@@ -2022,7 +2148,9 @@ export function getSessionScopedTools(sessionId: string, workspaceRootPath: stri
         createSkillValidateTool(sessionId, workspaceRootPath),
         // Mermaid diagram validation tool
         createMermaidValidateTool(),
-        // Source tools: test + auth only (CRUD via file editing)
+        // Source tools: list, activate, test, auth (CRUD via file editing)
+        createSourceListTool(sessionId, workspaceRootPath),
+        createSourceActivateTool(sessionId, workspaceRootPath),
         createSourceTestTool(sessionId, workspaceRootPath),
         createOAuthTriggerTool(sessionId, workspaceRootPath),
         createGoogleOAuthTriggerTool(sessionId, workspaceRootPath),
