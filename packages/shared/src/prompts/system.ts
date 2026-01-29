@@ -217,33 +217,71 @@ export interface DebugModeConfig {
 }
 
 /**
+ * Read the user-level context file at ~/.claude/CLAUDE.md.
+ * This mirrors Claude Code's native behavior of loading user-level context.
+ * Returns the file path and content if found, null otherwise.
+ */
+function readUserLevelContextFile(): { path: string; content: string } | null {
+  const homeDir = os.homedir();
+  const claudeDir = join(homeDir, '.claude');
+  const actualFilename = findFileCaseInsensitive(claudeDir, 'claude.md');
+  if (!actualFilename) return null;
+
+  const fullPath = join(claudeDir, actualFilename);
+  try {
+    let content = readFileSync(fullPath, 'utf-8');
+    if (content.length > MAX_CONTEXT_FILE_SIZE) {
+      debug(`[readUserLevelContextFile] ${fullPath} exceeds max size, truncating`);
+      content = content.slice(0, MAX_CONTEXT_FILE_SIZE) + '\n\n... (truncated)';
+    }
+    debug(`[readUserLevelContextFile] Found ${fullPath} (${content.length} chars)`);
+    return { path: fullPath, content };
+  } catch (error) {
+    debug(`[readUserLevelContextFile] Error reading ${fullPath}:`, error);
+    return null;
+  }
+}
+
+/**
  * Get the project context files prompt section for the system prompt.
  * Lists all discovered context files (AGENTS.md, CLAUDE.md) in the working directory.
  * For monorepos, this includes nested package context files.
- * Returns empty string if no working directory or no context files found.
+ * Also includes the user-level ~/.claude/CLAUDE.md content inline if it exists.
+ * Returns empty string if no context files found anywhere.
  */
 export function getProjectContextFilesPrompt(workingDirectory?: string): string {
-  if (!workingDirectory) {
+  const userContext = readUserLevelContextFile();
+  const projectContextFiles = workingDirectory ? findAllProjectContextFiles(workingDirectory) : [];
+
+  if (!userContext && projectContextFiles.length === 0) {
     return '';
   }
 
-  const contextFiles = findAllProjectContextFiles(workingDirectory);
-  if (contextFiles.length === 0) {
-    return '';
+  const sections: string[] = [];
+
+  // Inject user-level context file content directly
+  if (userContext) {
+    sections.push(`<user_context_file path="${userContext.path}">
+${userContext.content}
+</user_context_file>`);
   }
 
-  // Format file list with (root) annotation for top-level files
-  const fileList = contextFiles
-    .map((file) => {
-      const isRoot = !file.includes('/');
-      return `- ${file}${isRoot ? ' (root)' : ''}`;
-    })
-    .join('\n');
+  // List project context files (these are still discovery-only, read via Read tool)
+  if (projectContextFiles.length > 0) {
+    const fileList = projectContextFiles
+      .map((file) => {
+        const isRoot = !file.includes('/');
+        return `- ${file}${isRoot ? ' (root)' : ''}`;
+      })
+      .join('\n');
 
-  return `
-<project_context_files working_directory="${workingDirectory}">
+    const wd = workingDirectory || '(no working directory)';
+    sections.push(`<project_context_files working_directory="${wd}">
 ${fileList}
-</project_context_files>`;
+</project_context_files>`);
+  }
+
+  return '\n' + sections.join('\n\n');
 }
 
 /** Options for getSystemPrompt */
@@ -391,9 +429,11 @@ Sources are external data connections. Each source has:
 
 ## Project Context
 
+When \`<user_context_file>\` appears in the system prompt, it contains the user-level context from \`~/.claude/CLAUDE.md\` — follow its instructions as you would any system-level guidance.
+
 When \`<project_context_files>\` appears in the system prompt, it lists all discovered context files (CLAUDE.md, AGENTS.md) in the working directory and its subdirectories. This supports monorepos where each package may have its own context file.
 
-Read relevant context files using the Read tool - they contain architecture info, conventions, and project-specific guidance. For monorepos, read the root context file first, then package-specific files as needed based on what you're working on.
+Read relevant project context files using the Read tool - they contain architecture info, conventions, and project-specific guidance. For monorepos, read the root context file first, then package-specific files as needed based on what you're working on.
 
 ## Configuration Documentation
 
