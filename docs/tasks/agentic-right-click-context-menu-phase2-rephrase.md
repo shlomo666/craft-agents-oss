@@ -1,7 +1,7 @@
 # Phase 2: Rephrase — AI-powered message rewrite
 
-**Status:** Complete  
-**Commit:** (pending)
+**Status:** Complete
+**Commit:** `cd70783`
 
 ## Overview
 
@@ -65,8 +65,8 @@ Follows the **Regenerate Title UX pattern** (copycat):
 
 ## Verification
 
-- [ ] TypeScript compilation: 0 new errors
-- [ ] Manual test: right-click user message → Rephrase... → shimmer shows → edit box opens with rephrased text
+- [x] TypeScript compilation: 0 new errors
+- [x] Manual test: right-click user message → Rephrase... → shimmer shows → edit box opens with rephrased text
 - [ ] Manual test: send rephrased text works (rewind + resend pipeline)
 - [ ] Manual test: cancel edit returns to original message
 - [ ] Manual test: error case shows toast
