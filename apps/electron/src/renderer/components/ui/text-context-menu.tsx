@@ -41,10 +41,11 @@ export interface TextContextMenuProps {
  *   Cut / Copy / Paste  +  Rephrase Selection / Rephrase All
  *
  * Shimmer scoping:
- *   - "Rephrase Selection" → injects a <mark> around the selected DOM range (inline shimmer)
- *   - "Rephrase All" → shimmers the entire wrapper div
+ *   - "Rephrase Selection" → CSS Custom Highlight API (accent bg on selected range only)
+ *   - "Rephrase All" → wrapper-level opacity shimmer
+ *   - Fallback: wrapper shimmer if Highlight API unavailable (textarea, old env)
  *
- * After replacement, a brief accent glow flash confirms the change.
+ * After replacement, a box-shadow glow flash confirms the change.
  */
 export function TextContextMenu({
   children,
@@ -61,7 +62,6 @@ export function TextContextMenu({
   const capturedSelectionRef = useRef<TextSelection | null>(null)
   const capturedTextRef = useRef('')
   const capturedRangeRef = useRef<Range | null>(null)
-  const shimmerMarkRef = useRef<HTMLElement | null>(null)
 
   const handleOpenChange = useCallback((open: boolean) => {
     if (open) {
@@ -69,7 +69,7 @@ export function TextContextMenu({
       capturedTextRef.current = getText()
       setHasSelection(!!capturedSelectionRef.current?.text)
 
-      // Capture DOM range for inline shimmer (must be done now — selection lost after menu opens)
+      // Capture DOM range for CSS Highlight API (must clone now — selection lost after menu portal opens)
       const sel = window.getSelection()
       if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
         capturedRangeRef.current = sel.getRangeAt(0).cloneRange()
@@ -79,34 +79,28 @@ export function TextContextMenu({
     }
   }, [getSelection, getText])
 
-  const injectShimmerMark = useCallback(() => {
+  const activateHighlight = useCallback(() => {
     const range = capturedRangeRef.current
-    if (!range) return false
+    if (!range || !('highlights' in CSS)) return false
     try {
-      const mark = document.createElement('mark')
-      mark.className = 'rephrase-shimmer-inline'
-      range.surroundContents(mark)
-      shimmerMarkRef.current = mark
+      // @ts-expect-error -- CSS Highlight API types not in default lib
+      CSS.highlights.set('rephrase-active', new Highlight(range))
       return true
     } catch {
-      // Range crosses element boundaries — fall back to wrapper shimmer
       return false
     }
   }, [])
 
-  const removeShimmerMark = useCallback(() => {
-    const mark = shimmerMarkRef.current
-    if (mark?.parentNode) {
-      const parent = mark.parentNode
-      while (mark.firstChild) parent.insertBefore(mark.firstChild, mark)
-      mark.remove()
+  const clearHighlight = useCallback(() => {
+    if ('highlights' in CSS) {
+      // @ts-expect-error -- CSS Highlight API types
+      CSS.highlights.delete('rephrase-active')
     }
-    shimmerMarkRef.current = null
   }, [])
 
   const triggerGlow = useCallback(() => {
     setIsGlowing(true)
-    setTimeout(() => setIsGlowing(false), 500)
+    setTimeout(() => setIsGlowing(false), 600)
   }, [])
 
   const handleCut = useCallback(() => {
@@ -141,14 +135,14 @@ export function TextContextMenu({
     const sel = capturedSelectionRef.current
     if (!sel?.text) return
 
-    // Try inline shimmer on just the selected text; fall back to whole-wrapper shimmer
-    const injected = injectShimmerMark()
-    setRephraseMode(injected ? 'selection' : 'all')
+    // CSS Highlight API: accent bg on the selected range only. Falls back to wrapper shimmer.
+    const highlighted = activateHighlight()
+    setRephraseMode(highlighted ? 'selection' : 'all')
 
     try {
       const result = await window.electronAPI.sessionCommand(sessionId, { type: 'rephrase_text', text: sel.text, availableMentions })
       const r = result as RephraseResult | undefined
-      removeShimmerMark()
+      clearHighlight()
       if (r?.success && r.rephrasedText) {
         const fullText = getText()
         setText(fullText.slice(0, sel.start) + r.rephrasedText + fullText.slice(sel.end))
@@ -158,12 +152,12 @@ export function TextContextMenu({
         toast.error(r?.error || 'Failed to rephrase')
       }
     } catch {
-      removeShimmerMark()
+      clearHighlight()
       toast.error('Failed to rephrase')
     } finally {
       setRephraseMode('idle')
     }
-  }, [sessionId, availableMentions, getText, setText, injectShimmerMark, removeShimmerMark, triggerGlow])
+  }, [sessionId, availableMentions, getText, setText, activateHighlight, clearHighlight, triggerGlow])
 
   const handleRephraseAll = useCallback(async () => {
     const text = getText()
