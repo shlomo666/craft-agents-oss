@@ -1,6 +1,7 @@
 import * as React from "react"
+import { useState } from "react"
 import { X, Image as ImageIcon } from "lucide-react"
-import { Spinner, FileTypeIcon, getFileTypeLabel } from "@craft-agent/ui"
+import { Spinner, FileTypeIcon, getFileTypeLabel, FullscreenOverlayBase } from "@craft-agent/ui"
 import { cn } from "@/lib/utils"
 import type { FileAttachment } from "../../../shared/types"
 
@@ -60,6 +61,7 @@ interface AttachmentBubbleProps {
 }
 
 function AttachmentBubble({ attachment, onRemove, disabled }: AttachmentBubbleProps) {
+  const [showPreview, setShowPreview] = useState(false)
   const isImage = attachment.type === 'image'
   const hasThumbnail = !!attachment.thumbnailBase64
   const hasImageBase64 = isImage && attachment.base64
@@ -91,8 +93,12 @@ function AttachmentBubble({ attachment, onRemove, disabled }: AttachmentBubblePr
       )}
 
       {isImage ? (
-        /* IMAGE: Square thumbnail only */
-        <div className="h-16 w-16 rounded-[8px] overflow-hidden bg-background shadow-minimal">
+        /* IMAGE: Square thumbnail, click to preview full-size */
+        <div
+          className="h-16 w-16 rounded-[8px] overflow-hidden bg-background shadow-minimal cursor-pointer"
+          onClick={() => imageSrc && setShowPreview(true)}
+          title={`Preview ${attachment.name}`}
+        >
           {imageSrc ? (
             <img src={imageSrc} alt={attachment.name} className="h-full w-full object-cover" />
           ) : (
@@ -126,6 +132,26 @@ function AttachmentBubble({ attachment, onRemove, disabled }: AttachmentBubblePr
             </span>
           </div>
         </div>
+      )}
+
+      {/* Image lightbox — full-size preview overlay */}
+      {showPreview && imageSrc && (
+        <FullscreenOverlayBase
+          isOpen
+          onClose={() => setShowPreview(false)}
+          typeBadge={{ icon: ImageIcon, label: 'Image', variant: 'purple' }}
+          title={attachment.name}
+          accessibleTitle={`Preview of ${attachment.name}`}
+        >
+          <div className="min-h-full flex items-center justify-center p-4">
+            <img
+              src={imageSrc}
+              alt={attachment.name}
+              className="max-w-full max-h-full object-contain rounded-sm"
+              draggable={false}
+            />
+          </div>
+        </FullscreenOverlayBase>
       )}
     </div>
   )
