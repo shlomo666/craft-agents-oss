@@ -22,5 +22,5 @@ export { PDFPreviewOverlay, type PDFPreviewOverlayProps } from './PDFPreviewOver
 export { MermaidPreviewOverlay, type MermaidPreviewOverlayProps } from './MermaidPreviewOverlay'
 
 // Timeline overlay
-export { ConversationTimeline, type ConversationTimelineProps } from './ConversationTimeline'
+export { ConversationTimeline, type ConversationTimelineProps, type TimelineEntry } from './ConversationTimeline'
 export { TimelineActivityCard, type TimelineActivityCardProps } from './TimelineActivityCard'

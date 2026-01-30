@@ -158,6 +158,7 @@ export {
   // Timeline overlay
   ConversationTimeline,
   type ConversationTimelineProps,
+  type TimelineEntry,
 } from './components/overlay'
 
 // File classification (for link interceptor)
