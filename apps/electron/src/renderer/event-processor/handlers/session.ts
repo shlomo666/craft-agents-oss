@@ -36,6 +36,7 @@ import type {
   AuthCompletedEvent,
   UsageUpdateEvent,
   SessionRewoundEvent,
+  SessionBranchedEvent,
 } from '../types'
 import type { Message } from '../../../shared/types'
 import { generateMessageId, appendMessage } from '../helpers'
@@ -807,6 +808,25 @@ export function handleSessionRewound(
       type: 'prefill_input',
       sessionId: event.sessionId,
       text: event.prefillText,
+    }],
+  }
+}
+
+/**
+ * Handle session_branched - new session created from a branch point.
+ * Does NOT modify the current session state (original is untouched).
+ * Emits branch_created effect for App.tsx to add the new session and navigate.
+ */
+export function handleSessionBranched(
+  state: SessionState,
+  event: SessionBranchedEvent
+): ProcessResult {
+  return {
+    state,
+    effects: [{
+      type: 'branch_created',
+      newSession: event.newSession,
+      prefillText: event.prefillText,
     }],
   }
 }

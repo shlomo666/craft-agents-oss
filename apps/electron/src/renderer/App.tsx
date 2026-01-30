@@ -486,6 +486,22 @@ export default function App() {
             }))
             break
           }
+          case 'branch_created': {
+            // Add the branched session to the store
+            addSession(effect.newSession)
+            // Set draft text on the new session
+            sessionDraftsRef.current.set(effect.newSession.id, effect.prefillText)
+            window.electronAPI.setDraft(effect.newSession.id, effect.prefillText)
+            // Navigate to the new session
+            navigate(routes.view.allChats(effect.newSession.id))
+            // Notify ChatPage to sync input value
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('craft:draft-changed', {
+                detail: { sessionId: effect.newSession.id, text: effect.prefillText }
+              }))
+            }, 100)
+            break
+          }
         }
       }
 

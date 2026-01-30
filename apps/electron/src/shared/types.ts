@@ -409,6 +409,8 @@ export type SessionEvent =
   | { type: 'usage_update'; sessionId: string; tokenUsage: { inputTokens: number; contextWindow?: number } }
   // Rewind event - conversation truncated to a specific message
   | { type: 'session_rewound'; sessionId: string; messages: Message[]; prefillText: string }
+  // Branch event - new session created from a specific message
+  | { type: 'session_branched'; sessionId: string; newSession: Session; prefillText: string }
 
 // Options for sendMessage
 export interface SendMessageOptions {
@@ -454,6 +456,7 @@ export type SessionCommand =
   | { type: 'markCompactionComplete' }
   | { type: 'clearPendingPlanExecution' }
   | { type: 'rewind'; messageId: string }
+  | { type: 'branch'; messageId: string }
 
 /**
  * Parameters for opening a new chat session

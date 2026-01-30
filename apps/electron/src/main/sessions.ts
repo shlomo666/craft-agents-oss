@@ -2852,6 +2852,76 @@ export class SessionManager {
   }
 
   /**
+   * Branch from a message: create a new session with conversation history
+   * copied up to (excluding) the target user message. The original session
+   * is untouched. The target message text is returned for input pre-fill
+   * in the new session.
+   */
+  async branchFromMessage(sessionId: string, messageId: string): Promise<void> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    // Ensure messages are loaded from disk (lazy-loaded sessions)
+    await this.ensureMessagesLoaded(managed)
+
+    // Find the target message
+    sessionLog.info(`Branch: searching for message ${messageId} in ${managed.messages.length} messages`)
+    const messageIndex = managed.messages.findIndex(m => m.id === messageId)
+    if (messageIndex === -1) {
+      sessionLog.error(`Branch: message ${messageId} not found. Available IDs: ${managed.messages.filter(m => m.role === 'user').map(m => m.id).join(', ')}`)
+      throw new Error(`Message ${messageId} not found in session ${sessionId}`)
+    }
+
+    const targetMessage = managed.messages[messageIndex]
+    if (targetMessage.role !== 'user') {
+      throw new Error(`Message ${messageId} is not a user message`)
+    }
+
+    sessionLog.info(`Branching session ${sessionId} from message ${messageId} (index ${messageIndex})`)
+
+    // Capture the text for pre-fill
+    const prefillText = targetMessage.content
+
+    // Copy messages up to (excluding) the target message
+    const branchedMessages = managed.messages.slice(0, messageIndex)
+
+    // Create a new session in the same workspace
+    const newSession = await this.createSession(managed.workspace.id, {
+      permissionMode: managed.permissionMode,
+      workingDirectory: managed.workingDirectory,
+    })
+
+    // Copy messages into the new managed session
+    const newManaged = this.sessions.get(newSession.id)
+    if (newManaged) {
+      newManaged.messages = branchedMessages.map(m => ({ ...m }))
+      newManaged.thinkingLevel = managed.thinkingLevel
+      newManaged.enabledSourceSlugs = managed.enabledSourceSlugs ? [...managed.enabledSourceSlugs] : undefined
+      newManaged.model = managed.model
+
+      // Persist the new session with copied messages
+      this.persistSession(newManaged)
+      await this.flushSession(newSession.id)
+    }
+
+    // Build the new session object with the copied messages for the renderer
+    const newSessionWithMessages: Session = {
+      ...newSession,
+      messages: branchedMessages,
+    }
+
+    // Notify renderer with the new session and prefill text
+    this.sendEvent({
+      type: 'session_branched',
+      sessionId,
+      newSession: newSessionWithMessages,
+      prefillText,
+    }, managed.workspace.id)
+  }
+
+  /**
    * Central handler for when processing stops (any reason).
    * Single source of truth for cleanup and queue processing.
    *

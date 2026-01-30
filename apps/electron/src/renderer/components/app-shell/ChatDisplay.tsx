@@ -847,7 +847,14 @@ export function ChatDisplay({
                               Create Group...
                             </StyledContextMenuItem>
                             <StyledContextMenuSeparator />
-                            <StyledContextMenuItem disabled>
+                            <StyledContextMenuItem onSelect={() => {
+                              const sid = session.id
+                              const msgId = turn.message.id
+                              window.electronAPI.sessionCommand(sid, { type: 'branch', messageId: msgId })
+                                .catch((err: unknown) => {
+                                  console.error('[ChatDisplay] Branch failed:', err)
+                                })
+                            }}>
                               <GitBranch />
                               Branch from Here
                             </StyledContextMenuItem>

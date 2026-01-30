@@ -400,6 +400,17 @@ export interface SessionRewoundEvent {
 }
 
 /**
+ * Session branched - new session created from a specific message point.
+ * Does not modify the current session state.
+ */
+export interface SessionBranchedEvent {
+  type: 'session_branched'
+  sessionId: string
+  newSession: Session
+  prefillText: string
+}
+
+/**
  * Union of all agent events
  */
 export type AgentEvent =
@@ -439,6 +450,7 @@ export type AgentEvent =
   | SourceActivatedEvent
   | UsageUpdateEvent
   | SessionRewoundEvent
+  | SessionBranchedEvent
 
 /**
  * Side effects that need to be handled outside the pure processor
@@ -450,6 +462,7 @@ export type Effect =
   | { type: 'permission_mode_changed'; sessionId: string; permissionMode: PermissionMode }
   | { type: 'auto_retry'; sessionId: string; originalMessage: string; sourceSlug: string }
   | { type: 'prefill_input'; sessionId: string; text: string }
+  | { type: 'branch_created'; newSession: Session; prefillText: string }
 
 /**
  * Result of processing an event
