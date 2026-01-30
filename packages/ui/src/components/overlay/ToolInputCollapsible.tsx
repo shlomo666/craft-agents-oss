@@ -73,10 +73,10 @@ export function ToolInputCollapsible({ toolInput, theme = 'dark' }: ToolInputCol
                   <JsonView
                     value={toolInput}
                     style={jsonTheme}
-                    collapsed={1}
+                    collapsed={false}
                     enableClipboard={true}
                     displayDataTypes={false}
-                    shortenTextAfterLength={100}
+                    shortenTextAfterLength={200}
                   >
                     <JsonView.Copied
                       render={(props) => {

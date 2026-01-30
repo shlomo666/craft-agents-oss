@@ -155,6 +155,9 @@ export {
   type DocumentFormattedMarkdownOverlayProps,
   type ImagePreviewOverlayProps,
   type PDFPreviewOverlayProps,
+  // Timeline overlay
+  ConversationTimeline,
+  type ConversationTimelineProps,
 } from './components/overlay'
 
 // File classification (for link interceptor)

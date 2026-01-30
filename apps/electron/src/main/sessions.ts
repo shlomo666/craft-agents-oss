@@ -2776,8 +2776,14 @@ ${message}`
         }
       }
 
-      // Loop exited without complete event (shouldn't happen normally)
-      sessionLog.info('Chat loop exited unexpectedly')
+      // Loop can exit here via two paths:
+      // 1. Cancellation break: isProcessing was cleared by cancelProcessing (Stop button) — expected
+      // 2. Iterator exhaustion without a complete event — unexpected
+      if (!managed.isProcessing) {
+        sessionLog.debug('Chat loop exited via cancellation break')
+      } else {
+        sessionLog.warn('Chat loop exited without complete event (iterator exhausted unexpectedly)')
+      }
     } catch (error) {
       // Check if this is an abort error (expected when interrupted)
       const isAbortError = error instanceof Error && (
@@ -3903,7 +3909,13 @@ To view this task's output:
       : []
 
     if (windows.length === 0) {
-      sessionLog.warn(`Cannot send ${event.type} event - no windows for workspace ${workspaceId}`)
+      // UI-only events are safe to miss when no windows are open — data is persisted independently
+      const uiOnlyEvents = ['complete', 'usage_update', 'text_delta', 'tool_start', 'tool_result']
+      if (uiOnlyEvents.includes(event.type)) {
+        sessionLog.debug(`Cannot send ${event.type} event - no windows for workspace ${workspaceId}`)
+      } else {
+        sessionLog.warn(`Cannot send ${event.type} event - no windows for workspace ${workspaceId}`)
+      }
       return
     }
 

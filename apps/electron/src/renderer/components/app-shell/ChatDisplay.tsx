@@ -37,6 +37,7 @@ import {
   GenericOverlay,
   JSONPreviewOverlay,
   DocumentFormattedMarkdownOverlay,
+  ConversationTimeline,
   detectLanguage,
   type ActivityItem,
   type OverlayData,
@@ -89,11 +90,19 @@ interface MarkdownOverlayState {
   forceCodeView?: boolean
 }
 
+/** State for conversation timeline overlay (all tool activities) */
+interface TimelineOverlayState {
+  type: 'timeline'
+  activities: ActivityItem[]
+  focusedId: string
+}
+
 /** Union of all overlay states, or null for no overlay */
 type OverlayState =
   | { type: 'activity'; activity: ActivityItem }
   | MultiDiffOverlayState
   | MarkdownOverlayState
+  | TimelineOverlayState
   | null
 
 interface ChatDisplayProps {
@@ -388,15 +397,6 @@ export function ChatDisplay({
   // Tutorial
   disableSend = false,
 }: ChatDisplayProps) {
-  // DEBUG: Track messagesLoading flipping during processing
-  React.useEffect(() => {
-    if (messagesLoading && session?.isProcessing) {
-      console.warn('[ChatDisplay] BUG DETECTED: messagesLoading=true while session is processing!', {
-        sessionId: session.id,
-        messageCount: session.messages?.length,
-      })
-    }
-  }, [messagesLoading, session?.isProcessing, session?.id, session?.messages?.length])
 
   // Input is only disabled when explicitly disabled (e.g., agent needs activation)
   // User can type during streaming - submitting will stop the stream and send
@@ -1016,54 +1016,18 @@ export function ChatDisplay({
                           })
                         }}
                         onOpenActivityDetails={(activity) => {
-                          // Write tool for .md/.txt → Document overlay (rendered markdown)
-                          // rather than multi-diff, since these are better viewed as formatted documents
-                          const isDocumentWrite = activity.toolName === 'Write' && (() => {
-                            const actInput = activity.toolInput as Record<string, unknown> | undefined
-                            const fp = (actInput?.file_path as string) || ''
-                            const ext = fp.split('.').pop()?.toLowerCase()
-                            return ext === 'md' || ext === 'txt'
-                          })()
+                          // Collect tool activities from THIS turn only
+                          const turnToolActivities = turn.activities.filter(
+                            (a) => a.toolName && a.type === 'tool'
+                          )
 
-                          // Edit/Write tool → Multi-file diff overlay (ungrouped, focused on this change)
-                          // Exception: Write to .md/.txt files goes to document overlay instead
-                          if ((activity.toolName === 'Edit' || activity.toolName === 'Write') && !isDocumentWrite) {
-                            // Collect all Edit/Write activities from this turn for context
-                            const changes: FileChange[] = []
-                            for (const a of turn.activities) {
-                              const actInput = a.toolInput as Record<string, unknown> | undefined
-                              if (a.toolName === 'Edit' && actInput) {
-                                changes.push({
-                                  id: a.id,
-                                  filePath: (actInput.file_path as string) || 'unknown',
-                                  toolType: 'Edit',
-                                  original: (actInput.old_string as string) || '',
-                                  modified: (actInput.new_string as string) || '',
-                                  error: a.error || undefined,
-                                })
-                              } else if (a.toolName === 'Write' && actInput) {
-                                changes.push({
-                                  id: a.id,
-                                  filePath: (actInput.file_path as string) || 'unknown',
-                                  toolType: 'Write',
-                                  original: '',
-                                  modified: (actInput.content as string) || '',
-                                  error: a.error || undefined,
-                                })
-                              }
-                            }
-
-                            if (changes.length > 0) {
-                              setOverlayState({
-                                type: 'multi-diff',
-                                changes,
-                                consolidated: false, // Ungrouped mode - show individual changes
-                                focusedChangeId: activity.id, // Focus on clicked activity
-                              })
-                            }
-                          } else {
-                            // All other tools → Use extractOverlayData for appropriate overlay
-                            setOverlayState({ type: 'activity', activity })
+                          // Open timeline with focused activity
+                          if (turnToolActivities.length > 0) {
+                            setOverlayState({
+                              type: 'timeline',
+                              activities: turnToolActivities,
+                              focusedId: activity.id,
+                            })
                           }
                         }}
                         hasEditOrWriteActivities={turn.activities.some(a =>
@@ -1373,6 +1337,17 @@ export function ChatDisplay({
             toolInput={overlayData.toolInput}
           />
         )
+      )}
+
+      {/* Conversation timeline overlay (all tool activities side-by-side) */}
+      {overlayState?.type === 'timeline' && (
+        <ConversationTimeline
+          isOpen={true}
+          onClose={handleCloseOverlay}
+          activities={overlayState.activities}
+          focusedActivityId={overlayState.focusedId}
+          theme={isDark ? 'dark' : 'light'}
+        />
       )}
     </div>
   )

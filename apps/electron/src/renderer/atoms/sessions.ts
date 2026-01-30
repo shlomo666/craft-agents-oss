@@ -272,22 +272,52 @@ export const initializeSessionsAtom = atom(
         backgroundTasksAtomFamily.remove(oldId)
       }
     }
-    // Reset loaded sessions tracking — new workspace needs fresh lazy loading
-    // Preserve loaded status for sessions that are actively processing to prevent
-    // the conversation from disappearing mid-stream (messagesLoading would flip to true)
+    // Preserve loaded status for sessions that still exist in the new set.
+    // Only clear loaded status for sessions that were removed (deleted or different workspace).
+    // This prevents the conversation from disappearing when initializeSessionsAtom re-fires
+    // (e.g., HMR, useEffect re-fire) — previously only isProcessing sessions were preserved,
+    // causing idle sessions the user was viewing to flash a loading spinner.
     const oldLoaded = get(loadedSessionsAtom)
     const preserved = new Set<string>()
     for (const id of oldLoaded) {
-      const s = get(sessionAtomFamily(id))
-      if (s?.isProcessing) preserved.add(id)
-    }
-    if (preserved.size > 0) {
-      console.warn('[sessions] initializeSessionsAtom: preserving loaded status for processing sessions:', [...preserved])
+      if (newIdSet.has(id)) preserved.add(id)
     }
     set(loadedSessionsAtom, preserved)
 
-    // Set individual session atoms
+    // Set individual session atoms — but preserve messages for already-loaded sessions.
+    // getSessions() returns stubs with messages: [] to save memory. If we blindly overwrite
+    // a session that already has messages loaded, those messages are lost and won't be
+    // re-fetched (ensureSessionMessagesLoadedAtom skips sessions in loadedSessionsAtom).
     for (const session of sessions) {
+      if (preserved.has(session.id)) {
+        // Session is already loaded — merge metadata without wiping messages
+        const existing = get(sessionAtomFamily(session.id))
+        if (existing) {
+          set(sessionAtomFamily(session.id), {
+            ...existing,
+            // Update metadata fields that may have changed
+            name: session.name,
+            preview: session.preview,
+            lastMessageAt: session.lastMessageAt,
+            isProcessing: session.isProcessing || existing.isProcessing,
+            isFlagged: session.isFlagged,
+            todoState: session.todoState,
+            hasUnread: session.hasUnread,
+            workingDirectory: session.workingDirectory,
+            model: session.model,
+            enabledSourceSlugs: session.enabledSourceSlugs,
+            labels: session.labels,
+            sharedUrl: session.sharedUrl,
+            sharedId: session.sharedId,
+            lastMessageRole: session.lastMessageRole,
+            tokenUsage: session.tokenUsage ?? existing.tokenUsage,
+            messageCount: session.messageCount,
+            lastReadMessageId: session.lastReadMessageId,
+            lastFinalMessageId: session.lastFinalMessageId,
+          })
+          continue
+        }
+      }
       set(sessionAtomFamily(session.id), session)
     }
 
@@ -370,81 +400,6 @@ export const removeSessionAtom = atom(
     backgroundTasksAtomFamily.remove(sessionId)
   }
 )
-
-/**
- * Action atom: sync React state to per-session atoms
- *
- * This is the key to the hybrid approach:
- * - React state (sessions array) remains the source of truth
- * - This atom syncs changes to per-session atoms automatically
- * - Components using useSession(id) get isolated updates
- * - Jotai's referential equality prevents unnecessary re-renders
- *
- * IMPORTANT: During streaming, the atom is the source of truth.
- * Streaming events (text_delta, tool_start, tool_result) update atoms directly
- * and bypass React state for performance. We must NOT overwrite atoms for
- * sessions that are processing, or we lose streaming data (tool calls, text).
- * Once a "handoff" event (complete, error, etc.) occurs, React state catches up
- * and sync works normally again.
- */
-export const syncSessionsToAtomsAtom = atom(
-  null,
-  (get, set, sessions: Session[]) => {
-    const loadedSessions = get(loadedSessionsAtom)
-
-    // Update each session atom
-    for (const session of sessions) {
-      const sessionAtom = sessionAtomFamily(session.id)
-      const atomSession = get(sessionAtom)
-
-      // CRITICAL: If the atom's session is processing, it has streaming updates
-      // that React state doesn't know about yet. Don't overwrite - atom is
-      // source of truth during streaming. The handoff event will reconcile.
-      if (atomSession?.isProcessing) {
-        continue
-      }
-
-      // CRITICAL: If session messages were lazy-loaded, atom has full messages
-      // but React state may have empty array. Only skip if React would lose messages.
-      // Allow sync when React has MORE messages (e.g., user just sent a message).
-      if (loadedSessions.has(session.id) && atomSession) {
-        const atomMessageCount = atomSession.messages?.length ?? 0
-        const reactMessageCount = session.messages?.length ?? 0
-        // Skip sync only if React has fewer messages (would lose data)
-        if (reactMessageCount < atomMessageCount) {
-          continue
-        }
-      }
-
-      // Only update if the session object is different (referential check)
-      // This prevents unnecessary re-renders when the session hasn't changed
-      if (atomSession !== session) {
-        set(sessionAtom, session)
-      }
-    }
-
-    // Update metadata map for list display
-    // Note: We still update metadata from React state, which is fine because
-    // metadata doesn't include messages - the streaming content we're protecting
-    const metaMap = new Map<string, SessionMeta>()
-    for (const session of sessions) {
-      const meta = extractSessionMeta(session)
-      // Preserve isProcessing from atom if atom is processing
-      // React state may have stale isProcessing: false during streaming
-      const atomSession = get(sessionAtomFamily(session.id))
-      if (atomSession?.isProcessing) {
-        meta.isProcessing = true
-      }
-      metaMap.set(session.id, meta)
-    }
-    set(sessionMetaMapAtom, metaMap)
-
-    // Update ordered IDs (preserve order from React state)
-    set(sessionIdsAtom, sessions.map(s => s.id))
-  }
-)
-
-// loadedSessionsAtom moved up before sessionsAtom (needed for self-syncing)
 
 /**
  * Action atom: Load session messages if not already loaded
