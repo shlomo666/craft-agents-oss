@@ -388,6 +388,16 @@ export function ChatDisplay({
   // Tutorial
   disableSend = false,
 }: ChatDisplayProps) {
+  // DEBUG: Track messagesLoading flipping during processing
+  React.useEffect(() => {
+    if (messagesLoading && session?.isProcessing) {
+      console.warn('[ChatDisplay] BUG DETECTED: messagesLoading=true while session is processing!', {
+        sessionId: session.id,
+        messageCount: session.messages?.length,
+      })
+    }
+  }, [messagesLoading, session?.isProcessing, session?.id, session?.messages?.length])
+
   // Input is only disabled when explicitly disabled (e.g., agent needs activation)
   // User can type during streaming - submitting will stop the stream and send
   const isInputDisabled = disabled
@@ -707,8 +717,8 @@ export function ChatDisplay({
                     transition={{ duration: 0.1, ease: 'easeOut' }}
                   >
                     {/* Loading/Content AnimatePresence: Handles spinner ↔ content transition */}
-                    <AnimatePresence mode="wait" initial={false}>
-                    {messagesLoading ? (
+                    <AnimatePresence mode="sync" initial={false}>
+                    {messagesLoading && !session.isProcessing ? (
                       /* Loading State: Show spinner while messages are being lazy loaded */
                       <motion.div
                         key="loading"

@@ -273,7 +273,18 @@ export const initializeSessionsAtom = atom(
       }
     }
     // Reset loaded sessions tracking — new workspace needs fresh lazy loading
-    set(loadedSessionsAtom, new Set<string>())
+    // Preserve loaded status for sessions that are actively processing to prevent
+    // the conversation from disappearing mid-stream (messagesLoading would flip to true)
+    const oldLoaded = get(loadedSessionsAtom)
+    const preserved = new Set<string>()
+    for (const id of oldLoaded) {
+      const s = get(sessionAtomFamily(id))
+      if (s?.isProcessing) preserved.add(id)
+    }
+    if (preserved.size > 0) {
+      console.warn('[sessions] initializeSessionsAtom: preserving loaded status for processing sessions:', [...preserved])
+    }
+    set(loadedSessionsAtom, preserved)
 
     // Set individual session atoms
     for (const session of sessions) {
