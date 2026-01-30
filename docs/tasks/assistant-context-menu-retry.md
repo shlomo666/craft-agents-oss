@@ -36,9 +36,13 @@ Retry reuses the existing `rewind` SessionCommand + `rewindToMessage()` in Sessi
 ## Checklist
 
 - [x] Document task scope and technical approach
-- [ ] Wrap `<TurnCard>` with `<ContextMenu>`
-- [ ] Add Retry menu item (rewind + resend preceding user message)
-- [ ] Add Copy menu item (copy response text)
-- [ ] Menu disabled during processing/streaming
-- [ ] Typecheck passes (0 new errors)
-- [ ] Manual testing — Retry rewinds and resends, Copy copies text
+- [x] Wrap `<TurnCard>` with `<ContextMenu>`
+- [x] Add Retry menu item (rewind + resend preceding user message)
+- [x] Add Copy menu item (copy response text)
+- [x] Menu disabled during processing/streaming
+- [x] Typecheck passes (0 new errors)
+- [x] Manual testing — Retry rewinds and resends, Copy copies text
+
+## Completed
+
+Committed as `af29745` — `feat: assistant message context menu with Retry & Copy`

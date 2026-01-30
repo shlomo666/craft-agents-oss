@@ -83,6 +83,15 @@ The first AI-powered menu item. When selected, it calls Sonnet with extended thi
 - UI: popover or inline panel below the context menu
 - Reuses rewind infrastructure from Phase 1
 
+**Implementation shortcut — copycat "Regenerate Title":**
+Craft Agent already has a "Regenerate Title" feature in the session list context menu (right-click a conversation → Regenerate Title). This feature has the exact UX pattern we need for all AI-powered menu actions:
+- **Fade in/out animation** on the session title while the AI is thinking
+- **Loading state** that shows the item is "in progress" without blocking the UI
+- **Toast notification** that briefly confirms success (auto-dismisses after ~1 second)
+- **Same async pattern**: trigger action → show progress → replace content → toast
+
+For Rephrase (and later Create Group, and any future AI menu actions), we should **replicate this exact pattern** rather than designing a new UX from scratch. The animation, toast, and async state management are already battle-tested in the codebase. Just adapt them for message content instead of session titles.
+
 ---
 
 ### Phase 3: Create Group (AI-powered team assembly)
@@ -151,8 +160,9 @@ At this point the menu becomes a **search surface**:
 |-------|--------|---------|-------|
 | Phase 1a: Context Menu UI | **Complete** | [`phase1a`](releases/agentic-right-click-context-menu-phase1a.md) | All 6 menu items rendered, disabled placeholders |
 | Phase 1b: Rewind | **Complete** | [`phase1b`](releases/agentic-right-click-context-menu-phase1b.md) | Edit & Resend + Copy wired, inline editor UI |
+| Assistant: Retry + Copy | **Complete** | — | Right-click assistant messages: Retry (rewind+resend) + Copy. See [`tasks/assistant-context-menu-retry.md`](tasks/assistant-context-menu-retry.md) |
 | Phase 1c: Branch | **Next up** | — | Design validated, rewind infra reusable |
-| Phase 2: Rephrase | Designed | — | Needs AI integration pattern |
-| Phase 3: Create Group | Designed | — | Shares infra with Phase 2 |
+| Phase 2: Rephrase | Designed | — | Copycat "Regenerate Title" UX pattern (fade, toast, async) |
+| Phase 3: Create Group | Designed | — | Shares infra with Phase 2 + same Regenerate Title pattern |
 | Phase 4: Living Menu | Concept | — | Needs skill registry design |
 | Phase 5+: Endless Menu | Vision | — | Long-term north star |
