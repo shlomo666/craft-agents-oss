@@ -68,6 +68,7 @@ import {
   StyledContextMenuSeparator,
 } from "@/components/ui/styled-context-menu"
 import type { RephraseResult } from "../../../shared/types"
+import { TextContextMenu } from "@/components/ui/text-context-menu"
 
 // ============================================================================
 // Overlay State Types
@@ -789,28 +790,39 @@ export function ChatDisplay({
                                 /* Inline edit dialog — replaces the message bubble */
                                 <div className="flex flex-col items-end gap-2 w-full">
                                   <div className="w-full max-w-[80%] flex flex-col gap-2">
-                                    <textarea
-                                      ref={editTextareaRef}
-                                      value={editingText}
-                                      onChange={(e) => {
-                                        setEditingText(e.target.value)
-                                        // Auto-resize
-                                        e.target.style.height = 'auto'
-                                        e.target.style.height = `${e.target.scrollHeight}px`
+                                    <TextContextMenu
+                                      getText={() => editingText}
+                                      setText={(t) => setEditingText(t)}
+                                      getSelection={() => {
+                                        const el = editTextareaRef.current
+                                        if (!el || el.selectionStart === el.selectionEnd) return null
+                                        return { text: el.value.slice(el.selectionStart, el.selectionEnd), start: el.selectionStart, end: el.selectionEnd }
                                       }}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                          e.preventDefault()
-                                          handleEditSend()
-                                        }
-                                        if (e.key === 'Escape') {
-                                          setEditingMessageId(null)
-                                          setEditingText('')
-                                        }
-                                      }}
-                                      className="w-full bg-foreground/5 rounded-[16px] px-5 py-3.5 text-sm resize-none outline-none focus:ring-1 focus:ring-foreground/20 min-h-[44px] max-h-[300px] overflow-y-auto"
-                                      placeholder="Edit your message..."
-                                    />
+                                      sessionId={session.id}
+                                    >
+                                      <textarea
+                                        ref={editTextareaRef}
+                                        value={editingText}
+                                        onChange={(e) => {
+                                          setEditingText(e.target.value)
+                                          // Auto-resize
+                                          e.target.style.height = 'auto'
+                                          e.target.style.height = `${e.target.scrollHeight}px`
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault()
+                                            handleEditSend()
+                                          }
+                                          if (e.key === 'Escape') {
+                                            setEditingMessageId(null)
+                                            setEditingText('')
+                                          }
+                                        }}
+                                        className="w-full bg-foreground/5 rounded-[16px] px-5 py-3.5 text-sm resize-none outline-none focus:ring-1 focus:ring-foreground/20 min-h-[44px] max-h-[300px] overflow-y-auto"
+                                        placeholder="Edit your message..."
+                                      />
+                                    </TextContextMenu>
                                     <div className="flex items-center gap-2 justify-end">
                                       <button
                                         onClick={() => {

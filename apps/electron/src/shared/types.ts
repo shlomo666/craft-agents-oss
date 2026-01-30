@@ -467,6 +467,7 @@ export type SessionCommand =
   | { type: 'rewind'; messageId: string }
   | { type: 'branch'; messageId: string }
   | { type: 'rephrase'; messageId: string }
+  | { type: 'rephrase_text'; text: string }
 
 /**
  * Parameters for opening a new chat session

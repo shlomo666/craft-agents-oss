@@ -2341,6 +2341,38 @@ export class SessionManager {
   }
 
   /**
+   * Rephrase arbitrary text using AI, with session conversation context.
+   * Lighter than rephraseMessage — no message lookup, works with any text.
+   */
+  async rephraseText(sessionId: string, text: string): Promise<{ success: boolean; rephrasedText?: string; error?: string }> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) return { success: false, error: 'Session not found' }
+
+    await this.ensureMessagesLoaded(managed)
+
+    const precedingMessages = managed.messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .slice(-10)
+      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+
+    managed.isAsyncOperationOngoing = true
+    this.sendEvent({ type: 'async_operation', sessionId, isOngoing: true }, managed.workspace.id)
+
+    try {
+      const rephrasedText = await rephraseUserMessage(text, precedingMessages)
+      if (rephrasedText) return { success: true, rephrasedText }
+      return { success: false, error: 'Failed to generate rephrased text' }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      sessionLog.error(`Failed to rephrase text in session ${sessionId}:`, error)
+      return { success: false, error: message }
+    } finally {
+      managed.isAsyncOperationOngoing = false
+      this.sendEvent({ type: 'async_operation', sessionId, isOngoing: false }, managed.workspace.id)
+    }
+  }
+
+  /**
    * Update the working directory for a session
    */
   updateWorkingDirectory(sessionId: string, path: string): void {

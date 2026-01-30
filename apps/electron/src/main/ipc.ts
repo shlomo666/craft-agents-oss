@@ -391,6 +391,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
       case 'rephrase':
         ipcLog.info(`IPC: rephrase received for session ${sessionId}, message ${command.messageId}`)
         return sessionManager.rephraseMessage(sessionId, command.messageId)
+      case 'rephrase_text':
+        return sessionManager.rephraseText(sessionId, command.text)
       default: {
         const _exhaustive: never = command
         throw new Error(`Unknown session command: ${JSON.stringify(command)}`)

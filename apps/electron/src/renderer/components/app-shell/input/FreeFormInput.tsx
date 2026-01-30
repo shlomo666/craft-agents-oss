@@ -65,6 +65,7 @@ import { type ThinkingLevel, THINKING_LEVELS, getThinkingLevelName } from '@craf
 import { useEscapeInterrupt } from '@/context/EscapeInterruptContext'
 import { hasOpenOverlay } from '@/lib/overlay-detection'
 import { EscapeInterruptOverlay } from './EscapeInterruptOverlay'
+import { TextContextMenu } from '@/components/ui/text-context-menu'
 
 /**
  * Format token count for display (e.g., 1500 -> "1.5k", 200000 -> "200k")
@@ -1201,31 +1202,50 @@ export function FreeFormInput({
           loadingCount={loadingCount}
         />
 
-        {/* Rich Text Input with inline mention badges */}
-        <RichTextInput
-          ref={richInputRef}
-          value={input}
-          onChange={handleInputChange}
-          onInput={handleRichInput}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          onLongTextPaste={handleLongTextPaste}
-          onFocus={() => { setIsFocused(true); onFocusChange?.(true) }}
-          onBlur={() => {
-            // Save caret position before losing focus (for restoration via craft:focus-input)
-            lastCaretPositionRef.current = richInputRef.current?.selectionStart ?? null
-            setIsFocused(false)
-            onFocusChange?.(false)
+        {/* Rich Text Input with inline mention badges + custom context menu */}
+        <TextContextMenu
+          getText={() => input}
+          setText={(t) => handleInputChange(t)}
+          getSelection={() => {
+            const sel = window.getSelection()
+            const selectedText = sel?.toString() ?? ''
+            if (!selectedText) return null
+            const fullText = richInputRef.current?.value ?? ''
+            const cursorPos = richInputRef.current?.selectionStart ?? 0
+            const idx = fullText.indexOf(selectedText, Math.max(0, cursorPos - selectedText.length))
+            if (idx !== -1) return { text: selectedText, start: idx, end: idx + selectedText.length }
+            const fallback = fullText.indexOf(selectedText)
+            if (fallback !== -1) return { text: selectedText, start: fallback, end: fallback + selectedText.length }
+            return null
           }}
-          placeholder={shuffledPlaceholder}
+          sessionId={sessionId ?? ''}
           disabled={disabled}
-          skills={skills}
-          sources={sources}
-          workspaceId={workspaceId}
-          className="min-h-[88px] pl-5 pr-4 pt-4 pb-3 overflow-y-auto"
-          style={{ maxHeight: inputMaxHeight }}
-          data-tutorial="chat-input"
-        />
+        >
+          <RichTextInput
+            ref={richInputRef}
+            value={input}
+            onChange={handleInputChange}
+            onInput={handleRichInput}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onLongTextPaste={handleLongTextPaste}
+            onFocus={() => { setIsFocused(true); onFocusChange?.(true) }}
+            onBlur={() => {
+              // Save caret position before losing focus (for restoration via craft:focus-input)
+              lastCaretPositionRef.current = richInputRef.current?.selectionStart ?? null
+              setIsFocused(false)
+              onFocusChange?.(false)
+            }}
+            placeholder={shuffledPlaceholder}
+            disabled={disabled}
+            skills={skills}
+            sources={sources}
+            workspaceId={workspaceId}
+            className="min-h-[88px] pl-5 pr-4 pt-4 pb-3 overflow-y-auto"
+            style={{ maxHeight: inputMaxHeight }}
+            data-tutorial="chat-input"
+          />
+        </TextContextMenu>
 
         {/* Bottom Row: Controls - wrapped in relative container for escape overlay */}
         <div className="relative">
