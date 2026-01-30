@@ -20,7 +20,8 @@ import { resolveModelId } from '../config/storage.ts';
  */
 export async function rephraseUserMessage(
   targetMessage: string,
-  conversationContext: Array<{ role: 'user' | 'assistant'; content: string }>
+  conversationContext: Array<{ role: 'user' | 'assistant'; content: string }>,
+  availableMentions?: string[]
 ): Promise<string | null> {
   try {
     // Build conversation context (truncate each message to keep prompt manageable)
@@ -29,11 +30,24 @@ export async function rephraseUserMessage(
       .map((msg) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content.slice(0, 500)}`)
       .join('\n\n');
 
+    // Build mention tagging instructions
+    const mentionInstructions = availableMentions?.length
+      ? [
+          '',
+          'IMPORTANT: The user has these data sources and skills available as @mentions:',
+          availableMentions.join(', '),
+          'If the user\'s message references something that clearly matches one of these @mentions, INCLUDE the @mention in your rephrased text.',
+          'For example: "help me with the gateway" → "Explain how @third-party-gw-api works" (if that source exists).',
+          'Only tag mentions that are clearly relevant — do not force-tag unrelated sources.',
+        ]
+      : [];
+
     const prompt = [
       'You are a writing assistant. Rephrase the user\'s message to be clearer, more specific, and more actionable.',
       'Preserve the original intent completely. Add relevant context from the conversation if it helps clarify the request.',
       'Do NOT add pleasantries, greetings, or filler. Do NOT explain what you changed.',
       'Reply with ONLY the rephrased message text — nothing else.',
+      ...mentionInstructions,
       '',
       ...(contextLines ? ['Conversation context:', contextLines, ''] : []),
       'Original message to rephrase:',

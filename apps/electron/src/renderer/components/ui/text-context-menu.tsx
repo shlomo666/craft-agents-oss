@@ -27,6 +27,8 @@ export interface TextContextMenuProps {
   getSelection: () => TextSelection | null
   /** Session ID for rephrase IPC call */
   sessionId: string
+  /** Available @mentions (sources/skills) for auto-tagging in rephrase */
+  availableMentions?: string[]
   /** Disable the context menu */
   disabled?: boolean
 }
@@ -45,6 +47,7 @@ export function TextContextMenu({
   setText,
   getSelection,
   sessionId,
+  availableMentions,
   disabled,
 }: TextContextMenuProps) {
   const [isRephrasing, setIsRephrasing] = useState(false)
@@ -95,7 +98,7 @@ export function TextContextMenu({
 
     setIsRephrasing(true)
     try {
-      const result = await window.electronAPI.sessionCommand(sessionId, { type: 'rephrase_text', text: sel.text })
+      const result = await window.electronAPI.sessionCommand(sessionId, { type: 'rephrase_text', text: sel.text, availableMentions })
       const r = result as RephraseResult | undefined
       if (r?.success && r.rephrasedText) {
         const fullText = getText()
@@ -109,7 +112,7 @@ export function TextContextMenu({
     } finally {
       setIsRephrasing(false)
     }
-  }, [sessionId, getText, setText])
+  }, [sessionId, availableMentions, getText, setText])
 
   const handleRephraseAll = useCallback(async () => {
     const text = getText()
@@ -117,7 +120,7 @@ export function TextContextMenu({
 
     setIsRephrasing(true)
     try {
-      const result = await window.electronAPI.sessionCommand(sessionId, { type: 'rephrase_text', text })
+      const result = await window.electronAPI.sessionCommand(sessionId, { type: 'rephrase_text', text, availableMentions })
       const r = result as RephraseResult | undefined
       if (r?.success && r.rephrasedText) {
         setText(r.rephrasedText)
@@ -130,7 +133,7 @@ export function TextContextMenu({
     } finally {
       setIsRephrasing(false)
     }
-  }, [sessionId, getText, setText])
+  }, [sessionId, availableMentions, getText, setText])
 
   return (
     <ContextMenu onOpenChange={handleOpenChange}>

@@ -1205,7 +1205,23 @@ export function FreeFormInput({
         {/* Rich Text Input with inline mention badges + custom context menu */}
         <TextContextMenu
           getText={() => input}
-          setText={(t) => handleInputChange(t)}
+          setText={(t) => {
+            // Use execCommand to preserve browser undo stack (Cmd+Z)
+            const el = richInputRef.current?.element
+            if (el) {
+              el.focus()
+              const sel = window.getSelection()
+              if (sel) {
+                const range = document.createRange()
+                range.selectNodeContents(el)
+                sel.removeAllRanges()
+                sel.addRange(range)
+              }
+              document.execCommand('insertText', false, t)
+            } else {
+              handleInputChange(t)
+            }
+          }}
           getSelection={() => {
             const sel = window.getSelection()
             const selectedText = sel?.toString() ?? ''
@@ -1219,6 +1235,10 @@ export function FreeFormInput({
             return null
           }}
           sessionId={sessionId ?? ''}
+          availableMentions={[
+            ...sources.map(s => `@${s.config.slug}`),
+            ...skills.map(s => `@${s.slug}`),
+          ]}
           disabled={disabled}
         >
           <RichTextInput

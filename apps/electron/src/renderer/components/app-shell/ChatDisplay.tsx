@@ -43,6 +43,7 @@ import {
   type OverlayData,
   type FileChange,
   type DiffViewerSettings,
+  type TimelineEntry,
 } from "@craft-agent/ui"
 import { useFocusZone } from "@/hooks/keyboard"
 import { useTheme } from "@/hooks/useTheme"
@@ -91,10 +92,10 @@ interface MarkdownOverlayState {
   forceCodeView?: boolean
 }
 
-/** State for conversation timeline overlay (all tool activities) */
+/** State for conversation timeline overlay (tool activities + text responses) */
 interface TimelineOverlayState {
   type: 'timeline'
-  activities: ActivityItem[]
+  entries: TimelineEntry[]
   focusedId: string
 }
 
@@ -792,7 +793,16 @@ export function ChatDisplay({
                                   <div className="w-full max-w-[80%] flex flex-col gap-2">
                                     <TextContextMenu
                                       getText={() => editingText}
-                                      setText={(t) => setEditingText(t)}
+                                      setText={(t) => {
+                                        // Use execCommand to preserve browser undo stack (Cmd+Z)
+                                        const el = editTextareaRef.current
+                                        if (el) {
+                                          el.focus()
+                                          el.select()
+                                          document.execCommand('insertText', false, t)
+                                        }
+                                        setEditingText(t)
+                                      }}
                                       getSelection={() => {
                                         const el = editTextareaRef.current
                                         if (!el || el.selectionStart === el.selectionEnd) return null
@@ -1028,16 +1038,29 @@ export function ChatDisplay({
                           })
                         }}
                         onOpenActivityDetails={(activity) => {
-                          // Collect tool activities from THIS turn only
-                          const turnToolActivities = turn.activities.filter(
-                            (a) => a.toolName && a.type === 'tool'
-                          )
+                          // Build interleaved timeline entries: tool cards + intermediate text
+                          const entries: TimelineEntry[] = []
+                          for (const a of turn.activities) {
+                            if (a.toolName && a.type === 'tool') {
+                              entries.push({ type: 'tool', activity: a })
+                            } else if (a.type === 'intermediate' && a.content?.trim()) {
+                              entries.push({ type: 'text', id: a.id, content: a.content })
+                            }
+                          }
+                          // Add the turn's final response text if present
+                          if (turn.response?.text?.trim()) {
+                            entries.push({
+                              type: 'text',
+                              id: `response-${turn.turnId}`,
+                              content: turn.response.text,
+                            })
+                          }
 
                           // Open timeline with focused activity
-                          if (turnToolActivities.length > 0) {
+                          if (entries.length > 0) {
                             setOverlayState({
                               type: 'timeline',
-                              activities: turnToolActivities,
+                              entries,
                               focusedId: activity.id,
                             })
                           }
@@ -1356,7 +1379,7 @@ export function ChatDisplay({
         <ConversationTimeline
           isOpen={true}
           onClose={handleCloseOverlay}
-          activities={overlayState.activities}
+          entries={overlayState.entries}
           focusedActivityId={overlayState.focusedId}
           theme={isDark ? 'dark' : 'light'}
         />

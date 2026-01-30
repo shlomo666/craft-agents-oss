@@ -2344,7 +2344,7 @@ export class SessionManager {
    * Rephrase arbitrary text using AI, with session conversation context.
    * Lighter than rephraseMessage — no message lookup, works with any text.
    */
-  async rephraseText(sessionId: string, text: string): Promise<{ success: boolean; rephrasedText?: string; error?: string }> {
+  async rephraseText(sessionId: string, text: string, availableMentions?: string[]): Promise<{ success: boolean; rephrasedText?: string; error?: string }> {
     const managed = this.sessions.get(sessionId)
     if (!managed) return { success: false, error: 'Session not found' }
 
@@ -2359,7 +2359,7 @@ export class SessionManager {
     this.sendEvent({ type: 'async_operation', sessionId, isOngoing: true }, managed.workspace.id)
 
     try {
-      const rephrasedText = await rephraseUserMessage(text, precedingMessages)
+      const rephrasedText = await rephraseUserMessage(text, precedingMessages, availableMentions)
       if (rephrasedText) return { success: true, rephrasedText }
       return { success: false, error: 'Failed to generate rephrased text' }
     } catch (error) {
