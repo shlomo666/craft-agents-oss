@@ -362,6 +362,8 @@ interface ManagedSession {
   authRetryAttempted?: boolean
   // Flag indicating auth retry is in progress (to prevent complete handler from interfering)
   authRetryInProgress?: boolean
+  // Flag: next message needs recovery context injected (set after rewind clears the agent)
+  needsRecoveryContext?: boolean
 }
 
 // Convert runtime Message to StoredMessage for persistence
@@ -2670,8 +2672,36 @@ export class SessionManager {
       // in the rawText, and canUseTool in craft-agent.ts provides a fallback
       // to qualify short names. No transformation needed here.
 
+      // After rewind, the agent has no SDK session history. Inject conversation
+      // context so it knows about preceding messages (same format as buildRecoveryContext).
+      let chatMessage = message
+      if (managed.needsRecoveryContext) {
+        managed.needsRecoveryContext = false
+        const contextMessages = managed.messages
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .filter(m => !m.isIntermediate)
+          .slice(-6)
+        if (contextMessages.length > 0) {
+          const formatted = contextMessages.map(m => {
+            const role = m.role === 'user' ? 'User' : 'Assistant'
+            const content = m.content.length > 1000 ? m.content.slice(0, 1000) + '...[truncated]' : m.content
+            return `[${role}]: ${content}`
+          }).join('\n\n')
+          chatMessage = `<conversation_context>
+This message follows a conversation that was rewound. Here is the recent conversation context:
+
+${formatted}
+
+Continue the conversation naturally. The user's new message follows.
+</conversation_context>
+
+${message}`
+          sessionLog.info(`Injected recovery context (${contextMessages.length} messages) after rewind`)
+        }
+      }
+
       sendSpan.mark('chat.starting')
-      const chatIterator = agent.chat(message, attachments)
+      const chatIterator = agent.chat(chatMessage, attachments)
       sessionLog.info('Got chat iterator, starting iteration...')
 
       for await (const event of chatIterator) {
@@ -2897,6 +2927,9 @@ export class SessionManager {
     // (the conversation history is different now)
     managed.sdkSessionId = undefined
     managed.agent = null
+    // Flag: inject conversation context into the next message so the new agent
+    // knows about the preceding conversation (rewind clears the SDK session)
+    managed.needsRecoveryContext = managed.messages.length > 0
 
     // Persist truncated session to disk
     this.persistSession(managed)
