@@ -1508,7 +1508,7 @@ export class CraftAgent {
 
       // Known SDK slash commands that bypass context wrapping.
       // These are sent directly to the SDK without date/session/source context.
-      const SDK_SLASH_COMMANDS = ['compact', 'cost', 'clear'] as const;
+      const SDK_SLASH_COMMANDS = ['compact', 'clear'] as const;
 
       // Detect SDK slash commands - must be sent directly without context wrapping.
       // Pattern: /command or /command <instructions>

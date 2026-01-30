@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Command as CommandPrimitive } from 'cmdk'
-import { Brain, Check, Minimize2, Coins, Eraser } from 'lucide-react'
+import { Brain, Check, Minimize2, Eraser } from 'lucide-react'
 import { Icon_Folder } from '@craft-agent/ui'
 import { cn } from '@/lib/utils'
 import { PERMISSION_MODE_CONFIG, PERMISSION_MODE_ORDER, type PermissionMode } from '@craft-agent/shared/agent/modes'
@@ -115,14 +115,6 @@ const sdkCommands: SlashSdkItem[] = [
     description: 'Summarize conversation to free context',
     icon: <Minimize2 className={MENU_ICON_SIZE} />,
     command: '/compact',
-  },
-  {
-    id: 'cost',
-    type: 'sdk',
-    label: 'Cost',
-    description: 'Show token usage and costs',
-    icon: <Coins className={MENU_ICON_SIZE} />,
-    command: '/cost',
   },
   {
     id: 'clear',
