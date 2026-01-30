@@ -957,6 +957,37 @@ html.dark[data-scenic] .fullscreen-overlay-background {
   50% { opacity: 0.5; }
 }
 
+/* Inline shimmer — background pulse on selected text only during rephrase */
+.rephrase-shimmer-inline {
+  animation: rephrase-shimmer-bg 1.2s ease-in-out infinite;
+  border-radius: 2px;
+}
+
+@keyframes rephrase-shimmer-bg {
+  0%, 100% { background-color: oklch(var(--accent) / 0.15); }
+  50% { background-color: oklch(var(--accent) / 0.04); }
+}
+
+/* Glow flash — accent overlay that fades out after text replacement */
+.rephrase-glow {
+  position: relative;
+}
+
+.rephrase-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background-color: oklch(var(--accent) / 0.12);
+  animation: rephrase-glow-fade 0.5s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes rephrase-glow-fade {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* =============================================================================
    SHAKE ANIMATION
 
