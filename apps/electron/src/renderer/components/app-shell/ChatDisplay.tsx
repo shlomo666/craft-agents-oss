@@ -893,10 +893,16 @@ export function ChatDisplay({
                     // Check if this is the last response (for Accept Plan button visibility)
                     const isLastResponse = index === turns.length - 1 || !turns.slice(index + 1).some(t => t.type === 'user')
 
+                    // Find the preceding user turn for Retry action
+                    const precedingUserTurn = turns.slice(0, index).reverse().find((t): t is UserTurn => t.type === 'user')
+                    const isAssistantMenuDisabled = session.isProcessing || turn.isStreaming
+
                     // Assistant turns - render with TurnCard (buffered streaming)
                     return (
+                      <ContextMenu key={`turn-${turn.turnId}`}>
+                        <ContextMenuTrigger asChild disabled={isAssistantMenuDisabled}>
+                          <div>
                       <TurnCard
-                        key={`turn-${turn.turnId}`}
                         sessionId={session.id}
                         sessionFolderPath={session.sessionFolderPath}
                         turnId={turn.turnId}
@@ -1038,6 +1044,36 @@ export function ChatDisplay({
                           }
                         }}
                       />
+                          </div>
+                        </ContextMenuTrigger>
+                        <StyledContextMenuContent>
+                          {precedingUserTurn && (
+                            <StyledContextMenuItem onSelect={() => {
+                              const userMsg = precedingUserTurn.message
+                              window.electronAPI.sessionCommand(session.id, { type: 'rewind', messageId: userMsg.id })
+                                .then(() => {
+                                  onSendMessage(userMsg.content)
+                                })
+                                .catch((err) => {
+                                  console.error('[ChatDisplay] Retry rewind failed:', err)
+                                  onSendMessage(userMsg.content)
+                                })
+                            }}>
+                              <RefreshCw />
+                              Retry
+                            </StyledContextMenuItem>
+                          )}
+                          {turn.response?.text && (
+                            <>
+                              {precedingUserTurn && <StyledContextMenuSeparator />}
+                              <StyledContextMenuItem onSelect={() => navigator.clipboard.writeText(turn.response!.text)}>
+                                <Copy />
+                                Copy
+                              </StyledContextMenuItem>
+                            </>
+                          )}
+                        </StyledContextMenuContent>
+                      </ContextMenu>
                     )
                   })}
                     </motion.div>
