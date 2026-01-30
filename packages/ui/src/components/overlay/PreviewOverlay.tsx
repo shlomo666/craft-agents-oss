@@ -22,6 +22,7 @@ import { useOverlayMode, OVERLAY_LAYOUT } from '../../lib/layout'
 import { FullscreenOverlayBase } from './FullscreenOverlayBase'
 import { FullscreenOverlayBaseHeader } from './FullscreenOverlayBaseHeader'
 import { OverlayErrorBanner } from './OverlayErrorBanner'
+import { ToolInputCollapsible } from './ToolInputCollapsible'
 import type { PreviewBadgeVariant } from '../ui/PreviewHeader'
 
 /** Badge color variants - re-export for backwards compatibility */
@@ -63,6 +64,9 @@ export interface PreviewOverlayProps {
   /** Actions to show in header right side */
   headerActions?: ReactNode
 
+  /** Tool input parameters — rendered as collapsible JSON tree above content */
+  toolInput?: Record<string, unknown>
+
   /** Main content */
   children: ReactNode
 
@@ -84,6 +88,7 @@ export function PreviewOverlay({
   subtitle,
   error,
   headerActions,
+  toolInput,
   children,
   embedded = false,
   className,
@@ -137,6 +142,10 @@ export function PreviewOverlay({
   const FADE_SIZE = 24
   const FADE_MASK = `linear-gradient(to bottom, transparent 0%, black ${FADE_SIZE}px, black calc(100% - ${FADE_SIZE}px), transparent 100%)`
 
+  const toolInputSection = toolInput && Object.keys(toolInput).length > 0 ? (
+    <ToolInputCollapsible toolInput={toolInput} theme={theme} />
+  ) : null
+
   const contentArea = (
     <div
       className="flex-1 min-h-0 relative"
@@ -146,6 +155,7 @@ export function PreviewOverlay({
         className="absolute inset-0 overflow-y-auto"
         style={{ paddingTop: FADE_SIZE, paddingBottom: FADE_SIZE, scrollPaddingTop: FADE_SIZE }}
       >
+        {toolInputSection}
         {children}
       </div>
     </div>
@@ -177,6 +187,7 @@ export function PreviewOverlay({
         headerActions={headerActions}
         error={error}
       >
+        {toolInputSection}
         {children}
       </FullscreenOverlayBase>
     )

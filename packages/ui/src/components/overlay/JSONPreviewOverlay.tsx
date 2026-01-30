@@ -76,6 +76,8 @@ export interface JSONPreviewOverlayProps {
   error?: string
   /** Render inline without dialog (for playground) */
   embedded?: boolean
+  /** Tool input parameters */
+  toolInput?: Record<string, unknown>
 }
 
 /**
@@ -103,6 +105,7 @@ export function JSONPreviewOverlay({
   theme = 'dark',
   error,
   embedded,
+  toolInput,
 }: JSONPreviewOverlayProps) {
   // Select theme based on mode
   const jsonTheme = useMemo(() => {
@@ -128,6 +131,7 @@ export function JSONPreviewOverlay({
       theme={theme}
       error={error ? { label: 'Parse Error', message: error } : undefined}
       embedded={embedded}
+      toolInput={toolInput}
       className="bg-foreground-3"
     >
       <ContentFrame title="JSON">

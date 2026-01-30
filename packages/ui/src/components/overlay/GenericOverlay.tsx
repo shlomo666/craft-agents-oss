@@ -36,6 +36,8 @@ export interface GenericOverlayProps {
   embedded?: boolean
   /** Error message if the tool failed */
   error?: string
+  /** Tool input parameters */
+  toolInput?: Record<string, unknown>
 }
 
 /**
@@ -123,6 +125,7 @@ export function GenericOverlay({
   modifiedContent = '',
   embedded,
   error,
+  toolInput,
 }: GenericOverlayProps) {
   // Auto-detect language if not provided
   const detectedLanguage = useMemo(() => {
@@ -148,6 +151,7 @@ export function GenericOverlay({
       title={title}
       embedded={embedded}
       error={error ? { label: 'Tool Failed', message: error } : undefined}
+      toolInput={toolInput}
       className="bg-foreground-3"
     >
       <ContentFrame title="Preview">

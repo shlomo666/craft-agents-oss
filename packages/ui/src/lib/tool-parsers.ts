@@ -182,6 +182,7 @@ export interface CodeOverlayData {
   totalLines?: number
   numLines?: number
   error?: string
+  toolInput?: Record<string, unknown>
 }
 
 export interface TerminalOverlayData {
@@ -192,6 +193,7 @@ export interface TerminalOverlayData {
   toolType: ToolType
   description: string
   error?: string
+  toolInput?: Record<string, unknown>
 }
 
 export interface GenericOverlayData {
@@ -199,6 +201,7 @@ export interface GenericOverlayData {
   content: string
   title: string
   error?: string
+  toolInput?: Record<string, unknown>
 }
 
 export interface JSONOverlayData {
@@ -207,6 +210,7 @@ export interface JSONOverlayData {
   rawContent: string
   title: string
   error?: string
+  toolInput?: Record<string, unknown>
 }
 
 /** Rendered markdown document — used for Write tool results on .md/.txt files */
@@ -217,6 +221,7 @@ export interface DocumentOverlayData {
   /** Tool that produced this content (e.g. "Write") — used for the header type badge */
   toolName: string
   error?: string
+  toolInput?: Record<string, unknown>
 }
 
 export type OverlayData = CodeOverlayData | TerminalOverlayData | GenericOverlayData | JSONOverlayData | DocumentOverlayData
@@ -251,6 +256,7 @@ export function extractOverlayData(activity: ActivityItem): OverlayData | null {
       totalLines: parsed.totalLines,
       numLines: parsed.numLines,
       error: activity.error,
+      toolInput: input,
     }
   }
 
@@ -265,6 +271,7 @@ export function extractOverlayData(activity: ActivityItem): OverlayData | null {
         content,
         toolName: 'Write',
         error: activity.error,
+        toolInput: input,
       }
     }
     return {
@@ -273,6 +280,7 @@ export function extractOverlayData(activity: ActivityItem): OverlayData | null {
       content,
       mode: 'write',
       error: activity.error,
+      toolInput: input,
     }
   }
 
@@ -290,6 +298,7 @@ export function extractOverlayData(activity: ActivityItem): OverlayData | null {
       description: (input?.description as string) || activity.displayName || '',
       toolType: 'bash',
       error: activity.error,
+      toolInput: input,
     }
   }
 
@@ -306,6 +315,7 @@ export function extractOverlayData(activity: ActivityItem): OverlayData | null {
       description: parsed.description,
       toolType: 'grep',
       error: activity.error,
+      toolInput: input,
     }
   }
 
@@ -321,6 +331,7 @@ export function extractOverlayData(activity: ActivityItem): OverlayData | null {
       description: parsed.description,
       toolType: 'glob',
       error: activity.error,
+      toolInput: input,
     }
   }
 
@@ -333,6 +344,7 @@ export function extractOverlayData(activity: ActivityItem): OverlayData | null {
       content: formattedContent,
       toolName: 'WebSearch',
       error: activity.error,
+      toolInput: input,
     }
   }
 
@@ -349,6 +361,7 @@ export function extractOverlayData(activity: ActivityItem): OverlayData | null {
         rawContent: trimmedContent,
         title: activity.displayName || activity.toolName || 'JSON Result',
         error: activity.error,
+        toolInput: input,
       }
     } catch {
       // Not valid JSON, fall through to generic
@@ -361,5 +374,6 @@ export function extractOverlayData(activity: ActivityItem): OverlayData | null {
     content: rawContent || (input ? JSON.stringify(input, null, 2) : ''),
     title: activity.displayName || activity.toolName || 'Activity',
     error: activity.error,
+    toolInput: input,
   }
 }

@@ -14,6 +14,7 @@
 import { ListTodo } from 'lucide-react'
 import { Markdown } from '../markdown'
 import { FullscreenOverlayBase } from './FullscreenOverlayBase'
+import { ToolInputCollapsible } from './ToolInputCollapsible'
 import type { OverlayTypeBadge } from './FullscreenOverlayBaseHeader'
 
 export interface DocumentFormattedMarkdownOverlayProps {
@@ -35,6 +36,8 @@ export interface DocumentFormattedMarkdownOverlayProps {
   typeBadge?: OverlayTypeBadge
   /** Optional error message — renders a tinted error banner above the content card */
   error?: string
+  /** Tool input parameters */
+  toolInput?: Record<string, unknown>
 }
 
 export function DocumentFormattedMarkdownOverlay({
@@ -47,6 +50,7 @@ export function DocumentFormattedMarkdownOverlay({
   filePath,
   typeBadge,
   error,
+  toolInput,
 }: DocumentFormattedMarkdownOverlayProps) {
   return (
     <FullscreenOverlayBase
@@ -60,6 +64,12 @@ export function DocumentFormattedMarkdownOverlay({
       {/* Content wrapper — min-h-full for vertical centering within FullscreenOverlayBase's scroll container.
           Scrolling and gradient fade mask are handled by FullscreenOverlayBase. */}
       <div className="min-h-full flex flex-col justify-center px-6 py-16">
+        {/* Tool input parameters (collapsed by default) */}
+        {toolInput && Object.keys(toolInput).length > 0 && (
+          <div className="w-full max-w-[960px] mx-auto mb-3">
+            <ToolInputCollapsible toolInput={toolInput} />
+          </div>
+        )}
         {/* Content card - my-auto centers vertically when content is small, flows naturally when large */}
         <div className="bg-background rounded-[16px] shadow-strong w-full max-w-[960px] h-fit mx-auto my-auto">
           {/* Plan header (variant="plan" only) */}

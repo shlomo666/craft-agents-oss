@@ -1253,6 +1253,7 @@ export function ChatDisplay({
           numLines={overlayData.numLines}
           theme={isDark ? 'dark' : 'light'}
           error={overlayData.error}
+          toolInput={overlayData.toolInput}
         />
       )}
 
@@ -1282,6 +1283,7 @@ export function ChatDisplay({
           description={overlayData.description}
           theme={isDark ? 'dark' : 'light'}
           error={overlayData.error}
+          toolInput={overlayData.toolInput}
         />
       )}
 
@@ -1294,6 +1296,7 @@ export function ChatDisplay({
           title={overlayData.title}
           theme={isDark ? 'dark' : 'light'}
           error={overlayData.error}
+          toolInput={overlayData.toolInput}
         />
       )}
 
@@ -1308,6 +1311,7 @@ export function ChatDisplay({
           onOpenUrl={onOpenUrl}
           onOpenFile={onOpenFile}
           error={overlayData.error}
+          toolInput={overlayData.toolInput}
         />
       )}
 
@@ -1346,6 +1350,7 @@ export function ChatDisplay({
             onOpenUrl={onOpenUrl}
             onOpenFile={onOpenFile}
             error={overlayData.error}
+            toolInput={overlayData.toolInput}
           />
         ) : (
           <GenericOverlay
@@ -1355,6 +1360,7 @@ export function ChatDisplay({
             title={overlayData.title}
             theme={isDark ? 'dark' : 'light'}
             error={overlayData.error}
+            toolInput={overlayData.toolInput}
           />
         )
       )}

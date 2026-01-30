@@ -31,6 +31,8 @@ export interface TerminalPreviewOverlayProps {
   error?: string
   /** Render inline without dialog (for playground) */
   embedded?: boolean
+  /** Tool input parameters */
+  toolInput?: Record<string, unknown>
 }
 
 function getToolConfig(toolType: ToolType): {
@@ -59,6 +61,7 @@ export function TerminalPreviewOverlay({
   theme = 'light',
   error,
   embedded,
+  toolInput,
 }: TerminalPreviewOverlayProps) {
   const config = getToolConfig(toolType)
 
@@ -75,6 +78,7 @@ export function TerminalPreviewOverlay({
       title={description || ''}
       error={error ? { label: 'Command Failed', message: error } : undefined}
       embedded={embedded}
+      toolInput={toolInput}
       className="bg-foreground-3"
     >
       <ContentFrame title="Terminal">

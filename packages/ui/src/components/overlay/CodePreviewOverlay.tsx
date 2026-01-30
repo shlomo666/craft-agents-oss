@@ -36,6 +36,8 @@ export interface CodePreviewOverlayProps {
   error?: string
   /** Render inline without dialog (for playground) */
   embedded?: boolean
+  /** Tool input parameters */
+  toolInput?: Record<string, unknown>
 }
 
 export function CodePreviewOverlay({
@@ -51,6 +53,7 @@ export function CodePreviewOverlay({
   theme = 'light',
   error,
   embedded,
+  toolInput,
 }: CodePreviewOverlayProps) {
   // Build subtitle with line info
   const subtitle =
@@ -72,6 +75,7 @@ export function CodePreviewOverlay({
       subtitle={subtitle}
       error={error ? { label: mode === 'write' ? 'Write Failed' : 'Read Failed', message: error } : undefined}
       embedded={embedded}
+      toolInput={toolInput}
       className="bg-foreground-3"
     >
       <ContentFrame title="Code" fitContent minWidth={850}>

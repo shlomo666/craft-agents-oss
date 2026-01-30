@@ -7,6 +7,7 @@ export { ContentFrame, type ContentFrameProps } from './ContentFrame'
 // Helper components
 export { CopyButton, type CopyButtonProps } from './CopyButton'
 export { OverlayErrorBanner, type OverlayErrorBannerProps } from './OverlayErrorBanner'
+export { ToolInputCollapsible, type ToolInputCollapsibleProps } from './ToolInputCollapsible'
 
 // Specialized overlays
 export { CodePreviewOverlay, type CodePreviewOverlayProps } from './CodePreviewOverlay'
