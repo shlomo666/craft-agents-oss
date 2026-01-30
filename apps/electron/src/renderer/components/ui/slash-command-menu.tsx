@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Command as CommandPrimitive } from 'cmdk'
-import { Brain, Check } from 'lucide-react'
+import { Brain, Check, Minimize2, Coins, Eraser } from 'lucide-react'
 import { Icon_Folder } from '@craft-agent/ui'
 import { cn } from '@/lib/utils'
 import { PERMISSION_MODE_CONFIG, PERMISSION_MODE_ORDER, type PermissionMode } from '@craft-agent/shared/agent/modes'
@@ -33,11 +33,21 @@ export interface SlashFolderItem {
   path: string
 }
 
+/** SDK command item - submitted as a message to the agent */
+export interface SlashSdkItem {
+  id: string
+  type: 'sdk'
+  label: string
+  description: string
+  icon: React.ReactNode
+  command: string
+}
+
 /** Section with header for the inline slash menu */
 export interface SlashSection {
   id: string
   label: string
-  items: (SlashCommand | SlashFolderItem)[]
+  items: (SlashCommand | SlashFolderItem | SlashSdkItem)[]
 }
 
 export interface CommandGroup {
@@ -96,6 +106,34 @@ const ultrathinkCommand: SlashCommand = {
   icon: <Brain className={MENU_ICON_SIZE} />,
 }
 
+/** SDK commands that are submitted as messages to the agent */
+const sdkCommands: SlashSdkItem[] = [
+  {
+    id: 'compact',
+    type: 'sdk',
+    label: 'Compact',
+    description: 'Summarize conversation to free context',
+    icon: <Minimize2 className={MENU_ICON_SIZE} />,
+    command: '/compact',
+  },
+  {
+    id: 'cost',
+    type: 'sdk',
+    label: 'Cost',
+    description: 'Show token usage and costs',
+    icon: <Coins className={MENU_ICON_SIZE} />,
+    command: '/cost',
+  },
+  {
+    id: 'clear',
+    type: 'sdk',
+    label: 'Clear',
+    description: 'Clear conversation history',
+    icon: <Eraser className={MENU_ICON_SIZE} />,
+    command: '/clear',
+  },
+]
+
 export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
   ...permissionModeCommands,
   ultrathinkCommand,
@@ -131,8 +169,13 @@ function filterCommands(commands: SlashCommand[], filter: string): SlashCommand[
 }
 
 /** Check if an item is a folder */
-function isFolder(item: SlashCommand | SlashFolderItem): item is SlashFolderItem {
+function isFolder(item: SlashCommand | SlashFolderItem | SlashSdkItem): item is SlashFolderItem {
   return 'type' in item && item.type === 'folder'
+}
+
+/** Check if an item is an SDK command */
+function isSdkCommand(item: SlashCommand | SlashFolderItem | SlashSdkItem): item is SlashSdkItem {
+  return 'type' in item && item.type === 'sdk'
 }
 
 /** Filter sections by label/id, keeping sections grouped */
@@ -154,7 +197,7 @@ function filterSections(sections: SlashSection[], filter: string): SlashSection[
 }
 
 /** Flatten sections into a single array of items */
-function flattenSections(sections: SlashSection[]): (SlashCommand | SlashFolderItem)[] {
+function flattenSections(sections: SlashSection[]): (SlashCommand | SlashFolderItem | SlashSdkItem)[] {
   return sections.flatMap(section => section.items)
 }
 
@@ -311,6 +354,7 @@ export interface InlineSlashCommandProps {
   activeCommands?: SlashCommandId[]
   onSelectCommand: (commandId: SlashCommandId) => void
   onSelectFolder: (path: string) => void
+  onSelectSdkCommand?: (command: string) => void
   filter?: string
   position: { x: number; y: number }
   className?: string
@@ -323,6 +367,7 @@ export function InlineSlashCommand({
   activeCommands = [],
   onSelectCommand,
   onSelectFolder,
+  onSelectSdkCommand,
   filter = '',
   position,
   className,
@@ -348,14 +393,16 @@ export function InlineSlashCommand({
   }, [selectedIndex])
 
   // Handle item selection
-  const handleSelect = React.useCallback((item: SlashCommand | SlashFolderItem) => {
+  const handleSelect = React.useCallback((item: SlashCommand | SlashFolderItem | SlashSdkItem) => {
     if (isFolder(item)) {
       onSelectFolder(item.path)
+    } else if (isSdkCommand(item)) {
+      onSelectSdkCommand?.(item.command)
     } else {
       onSelectCommand(item.id)
     }
     onOpenChange(false)
-  }, [onSelectCommand, onSelectFolder, onOpenChange])
+  }, [onSelectCommand, onSelectFolder, onSelectSdkCommand, onOpenChange])
 
   // Keyboard navigation
   // Don't attach listener when no items - allows Enter to propagate to input handler
@@ -456,6 +503,23 @@ export function InlineSlashCommand({
                     </div>
                   </div>
                 )
+              } else if (isSdkCommand(item)) {
+                // SDK command item
+                return (
+                  <div
+                    key={item.id}
+                    data-selected={isSelected}
+                    onClick={() => handleSelect(item)}
+                    onMouseEnter={() => setSelectedIndex(itemIndex)}
+                    className={cn(
+                      MENU_ITEM_STYLE,
+                      isSelected && MENU_ITEM_SELECTED
+                    )}
+                  >
+                    <div className="shrink-0 text-muted-foreground">{item.icon}</div>
+                    <div className="flex-1 min-w-0">{item.label}</div>
+                  </div>
+                )
               } else {
                 // Command item
                 const isActive = activeCommands.includes(item.id)
@@ -522,6 +586,7 @@ export interface UseInlineSlashCommandOptions {
   inputRef: React.RefObject<SlashCommandInputElement | null>
   onSelectCommand: (commandId: SlashCommandId) => void
   onSelectFolder: (path: string) => void
+  onSelectSdkCommand?: (command: string) => void
   activeCommands?: SlashCommandId[]
   recentFolders?: string[]
   homeDir?: string
@@ -537,12 +602,14 @@ export interface UseInlineSlashCommandReturn {
   activeCommands: SlashCommandId[]
   handleSelectCommand: (commandId: SlashCommandId) => string
   handleSelectFolder: (path: string) => string
+  handleSelectSdkCommand: (command: string) => string
 }
 
 export function useInlineSlashCommand({
   inputRef,
   onSelectCommand,
   onSelectFolder,
+  onSelectSdkCommand,
   activeCommands = [],
   recentFolders = [],
   homeDir,
@@ -570,6 +637,13 @@ export function useInlineSlashCommand({
       id: 'features',
       label: 'Features',
       items: [ultrathinkCommand],
+    })
+
+    // SDK commands section
+    result.push({
+      id: 'commands',
+      label: 'Commands',
+      items: sdkCommands,
     })
 
     // Recent folders section - sorted alphabetically by folder name, show all
@@ -692,6 +766,21 @@ export function useInlineSlashCommand({
     return result
   }, [onSelectFolder, slashStart])
 
+  const handleSelectSdkCommand = React.useCallback((command: string): string => {
+    let result = ''
+    if (slashStart >= 0) {
+      const { value: currentValue, cursorPosition } = currentInputRef.current
+      const before = currentValue.slice(0, slashStart)
+      const after = currentValue.slice(cursorPosition)
+      result = (before + after).trim()
+    }
+
+    onSelectSdkCommand?.(command)
+    setIsOpen(false)
+
+    return result
+  }, [onSelectSdkCommand, slashStart])
+
   const close = React.useCallback(() => {
     setIsOpen(false)
     setFilter('')
@@ -708,5 +797,6 @@ export function useInlineSlashCommand({
     activeCommands,
     handleSelectCommand,
     handleSelectFolder,
+    handleSelectSdkCommand,
   }
 }

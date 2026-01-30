@@ -571,6 +571,11 @@ export function FreeFormInput({
     else if (commandId === 'ultrathink') onUltrathinkChange?.(!ultrathinkEnabled)
   }, [permissionMode, ultrathinkEnabled, onPermissionModeChange, onUltrathinkChange])
 
+  // Handle SDK command selection (submitted as messages to the agent)
+  const handleSlashSdkCommand = React.useCallback((command: string) => {
+    onSubmit(command)
+  }, [onSubmit])
+
   // Handle folder selection from slash command menu
   const handleSlashFolderSelect = React.useCallback((path: string) => {
     if (onWorkingDirectoryChange) {
@@ -591,11 +596,12 @@ export function FreeFormInput({
     })
   }, [])
 
-  // Inline slash command hook (modes, features, and folders)
+  // Inline slash command hook (modes, features, folders, and SDK commands)
   const inlineSlash = useInlineSlashCommand({
     inputRef: richInputRef,
     onSelectCommand: handleSlashCommand,
     onSelectFolder: handleSlashFolderSelect,
+    onSelectSdkCommand: handleSlashSdkCommand,
     activeCommands,
     recentFolders,
     homeDir,
@@ -1067,6 +1073,18 @@ export function FreeFormInput({
     richInputRef.current?.focus()
   }, [inlineSlash, syncToParent])
 
+  // Handle inline SDK command selection (submits command as message)
+  const handleInlineSlashSdkCommandSelect = React.useCallback((command: string) => {
+    inlineSlash.handleSelectSdkCommand(command)
+    // Clear input and submit the command
+    setInput('')
+    setAttachments([])
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
+    onInputChange?.('')
+    prevInputValueRef.current = ''
+    requestAnimationFrame(() => richInputRef.current?.focus())
+  }, [inlineSlash, onInputChange])
+
   // Handle inline mention selection (inserts appropriate mention text)
   const handleInlineMentionSelect = React.useCallback((item: MentionItem) => {
     const { value: newValue, cursorPosition } = inlineMention.handleSelect(item)
@@ -1124,6 +1142,7 @@ export function FreeFormInput({
           activeCommands={activeCommands}
           onSelectCommand={handleInlineSlashCommandSelect}
           onSelectFolder={handleInlineSlashFolderSelect}
+          onSelectSdkCommand={handleInlineSlashSdkCommandSelect}
           filter={inlineSlash.filter}
           position={inlineSlash.position}
         />
