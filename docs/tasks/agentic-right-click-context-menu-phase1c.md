@@ -81,14 +81,18 @@ The branched session should inherit these from the source:
 
 ## Checklist
 
-- [ ] Add `branch` to `SessionCommand` type
-- [ ] Add `session_branched` to `SessionEvent` type
-- [ ] Add `SessionBranchedEvent` + `branch_created` effect to event processor types
-- [ ] Implement `branchFromMessage()` in SessionManager
-- [ ] Add `branch` case to IPC handler
-- [ ] Add `handleSessionBranched()` handler
-- [ ] Add `session_branched` case to processor
-- [ ] Handle `branch_created` effect in App.tsx
-- [ ] Enable "Branch from Here" menu item in ChatDisplay.tsx
-- [ ] TypeScript compiles cleanly
-- [ ] Manual testing passes all verification items
+- [x] Add `branch` to `SessionCommand` type
+- [x] Add `session_branched` to `SessionEvent` type
+- [x] Add `SessionBranchedEvent` + `branch_created` effect to event processor types
+- [x] Implement `branchFromMessage()` in SessionManager
+- [x] Add `branch` case to IPC handler
+- [x] Add `handleSessionBranched()` handler
+- [x] Add `session_branched` case to processor
+- [x] Handle `branch_created` effect in App.tsx
+- [x] Enable "Branch from Here" menu item in ChatDisplay.tsx
+- [x] TypeScript compiles cleanly
+- [x] Manual testing passes all verification items
+
+## Completed
+
+Committed as `fffe6ac` — `feat: Branch from Here — fork conversation into new session (Phase 1c)`
