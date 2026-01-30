@@ -841,7 +841,17 @@ export function ChatDisplay({
                               <Pencil />
                               Edit & Resend
                             </StyledContextMenuItem>
-                            <StyledContextMenuItem disabled>
+                            <StyledContextMenuItem onSelect={() => {
+                              const sid = session.id
+                              const msgId = turn.message.id
+                              const text = turn.message.content
+                              window.electronAPI.sessionCommand(sid, { type: 'rewind', messageId: msgId })
+                                .then(() => onSendMessage(text))
+                                .catch((err) => {
+                                  console.error('[ChatDisplay] Retry rewind failed:', err)
+                                  onSendMessage(text)
+                                })
+                            }}>
                               <RefreshCw />
                               Retry
                             </StyledContextMenuItem>
