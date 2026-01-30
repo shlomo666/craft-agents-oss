@@ -145,6 +145,15 @@ export interface RefreshTitleResult {
   error?: string
 }
 
+/**
+ * Result of rephrasing a user message (AI-powered rewrite)
+ */
+export interface RephraseResult {
+  success: boolean
+  rephrasedText?: string
+  error?: string
+}
+
 
 // Re-export permission types from core, extended with sessionId for multi-session context
 export type { PermissionRequest as BasePermissionRequest } from '@craft-agent/core/types';
@@ -457,6 +466,7 @@ export type SessionCommand =
   | { type: 'clearPendingPlanExecution' }
   | { type: 'rewind'; messageId: string }
   | { type: 'branch'; messageId: string }
+  | { type: 'rephrase'; messageId: string }
 
 /**
  * Parameters for opening a new chat session
@@ -734,7 +744,7 @@ export interface ElectronAPI {
   respondToCredential(sessionId: string, requestId: string, response: CredentialResponse): Promise<boolean>
 
   // Consolidated session command handler
-  sessionCommand(sessionId: string, command: SessionCommand): Promise<void | ShareResult | RefreshTitleResult>
+  sessionCommand(sessionId: string, command: SessionCommand): Promise<void | ShareResult | RefreshTitleResult | RephraseResult>
 
   // Pending plan execution (for reload recovery)
   getPendingPlanExecution(sessionId: string): Promise<{ planPath: string; awaitingCompaction: boolean } | null>

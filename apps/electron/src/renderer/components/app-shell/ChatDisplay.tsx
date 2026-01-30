@@ -58,6 +58,7 @@ import { useTurnCardExpansion } from "@/hooks/useTurnCardExpansion"
 import type { SessionMeta } from "@/atoms/sessions"
 import { CHAT_LAYOUT } from "@/config/layout"
 import { flattenLabels } from "@craft-agent/shared/labels"
+import { toast } from "sonner"
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -65,6 +66,7 @@ import {
   StyledContextMenuItem,
   StyledContextMenuSeparator,
 } from "@/components/ui/styled-context-menu"
+import type { RephraseResult } from "../../../shared/types"
 
 // ============================================================================
 // Overlay State Types
@@ -436,6 +438,9 @@ export function ChatDisplay({
   const [editingText, setEditingText] = useState('')
   const editTextareaRef = React.useRef<HTMLTextAreaElement>(null)
 
+  // Rephrase loading state — tracks which message is being rephrased by AI
+  const [rephrasingMessageId, setRephrasingMessageId] = useState<string | null>(null)
+
   // Auto-focus and auto-resize the edit textarea when editing starts
   useEffect(() => {
     if (editingMessageId && editTextareaRef.current) {
@@ -744,6 +749,7 @@ export function ChatDisplay({
                     if (turn.type === 'user') {
                       const isMenuDisabled = session.isProcessing || !!turn.message.isPending || !!turn.message.isQueued
                       const isEditing = editingMessageId === turn.message.id
+                      const isRephrasing = rephrasingMessageId === turn.message.id
 
                       const handleEditSend = () => {
                         const text = editingText.trim()
@@ -817,11 +823,13 @@ export function ChatDisplay({
                                   </div>
                                 </div>
                               ) : (
-                                <MemoizedMessageBubble
-                                  message={turn.message}
-                                  onOpenFile={onOpenFile}
-                                  onOpenUrl={onOpenUrl}
-                                />
+                                <div className={isRephrasing ? 'animate-shimmer-text' : undefined}>
+                                  <MemoizedMessageBubble
+                                    message={turn.message}
+                                    onOpenFile={onOpenFile}
+                                    onOpenUrl={onOpenUrl}
+                                  />
+                                </div>
                               )}
                             </div>
                           </ContextMenuTrigger>
@@ -838,9 +846,34 @@ export function ChatDisplay({
                               Retry
                             </StyledContextMenuItem>
                             <StyledContextMenuSeparator />
-                            <StyledContextMenuItem disabled>
+                            <StyledContextMenuItem
+                              disabled={rephrasingMessageId === turn.message.id}
+                              onSelect={() => {
+                                const sid = session.id
+                                const msgId = turn.message.id
+                                setRephrasingMessageId(msgId)
+                                window.electronAPI.sessionCommand(sid, { type: 'rephrase', messageId: msgId })
+                                  .then((result) => {
+                                    const r = result as RephraseResult | undefined
+                                    if (r?.success && r.rephrasedText) {
+                                      setEditingMessageId(msgId)
+                                      setEditingText(r.rephrasedText)
+                                      toast.success('Message rephrased')
+                                    } else {
+                                      toast.error(r?.error || 'Failed to rephrase message')
+                                    }
+                                  })
+                                  .catch((err: unknown) => {
+                                    console.error('[ChatDisplay] Rephrase failed:', err)
+                                    toast.error('Failed to rephrase message')
+                                  })
+                                  .finally(() => {
+                                    setRephrasingMessageId(null)
+                                  })
+                              }}
+                            >
                               <Sparkles />
-                              Rephrase...
+                              {rephrasingMessageId === turn.message.id ? 'Rephrasing...' : 'Rephrase...'}
                             </StyledContextMenuItem>
                             <StyledContextMenuItem disabled>
                               <Users />

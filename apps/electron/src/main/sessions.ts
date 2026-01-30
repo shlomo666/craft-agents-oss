@@ -44,7 +44,7 @@ import { setAnthropicOptionsEnv, setPathToClaudeCodeExecutable, setInterceptorPa
 import { getCredentialManager } from '@craft-agent/shared/credentials'
 import { CraftMcpClient } from '@craft-agent/shared/mcp'
 import { type Session, type Message, type SessionEvent, type FileAttachment, type StoredAttachment, type SendMessageOptions, IPC_CHANNELS, generateMessageId } from '../shared/types'
-import { generateSessionTitle, regenerateSessionTitle, formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrl, getEmojiIcon, resetSummarizationClient, resolveToolIcon } from '@craft-agent/shared/utils'
+import { generateSessionTitle, regenerateSessionTitle, rephraseUserMessage, formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrl, getEmojiIcon, resetSummarizationClient, resolveToolIcon } from '@craft-agent/shared/utils'
 import { loadWorkspaceSkills, type LoadedSkill } from '@craft-agent/shared/skills'
 import type { ToolDisplayMeta } from '@craft-agent/core/types'
 import { DEFAULT_MODEL, getToolIconsDir } from '@craft-agent/shared/config'
@@ -2273,6 +2273,66 @@ export class SessionManager {
       return { success: false, error: message }
     } finally {
       // Signal async operation end
+      managed.isAsyncOperationOngoing = false
+      this.sendEvent({ type: 'async_operation', sessionId, isOngoing: false }, managed.workspace.id)
+    }
+  }
+
+  /**
+   * Rephrase a user message using AI.
+   * Builds conversation context from preceding messages, calls Sonnet to rewrite
+   * with better clarity and specificity. Returns the rephrased text for the
+   * Edit & Resend UI to pre-fill.
+   *
+   * Follows the same async_operation shimmer pattern as refreshTitle().
+   */
+  async rephraseMessage(sessionId: string, messageId: string): Promise<{ success: boolean; rephrasedText?: string; error?: string }> {
+    sessionLog.info(`rephraseMessage called for session ${sessionId}, message ${messageId}`)
+    const managed = this.sessions.get(sessionId)
+    if (!managed) {
+      sessionLog.warn(`rephraseMessage: Session ${sessionId} not found`)
+      return { success: false, error: 'Session not found' }
+    }
+
+    await this.ensureMessagesLoaded(managed)
+
+    const messageIndex = managed.messages.findIndex(m => m.id === messageId)
+    if (messageIndex === -1) {
+      sessionLog.warn(`rephraseMessage: Message ${messageId} not found`)
+      return { success: false, error: 'Message not found' }
+    }
+
+    const targetMessage = managed.messages[messageIndex]
+    if (targetMessage.role !== 'user') {
+      return { success: false, error: 'Can only rephrase user messages' }
+    }
+
+    // Build conversation context from preceding messages
+    const precedingMessages = managed.messages
+      .slice(0, messageIndex)
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .slice(-10)
+      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+
+    sessionLog.info(`rephraseMessage: Found ${precedingMessages.length} context messages, calling AI...`)
+
+    // Signal async operation start (shimmer effect)
+    managed.isAsyncOperationOngoing = true
+    this.sendEvent({ type: 'async_operation', sessionId, isOngoing: true }, managed.workspace.id)
+
+    try {
+      const rephrasedText = await rephraseUserMessage(targetMessage.content, precedingMessages)
+      sessionLog.info(`rephraseMessage: AI returned ${rephrasedText ? `${rephrasedText.length} chars` : 'null'}`)
+
+      if (rephrasedText) {
+        return { success: true, rephrasedText }
+      }
+      return { success: false, error: 'Failed to generate rephrased text' }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      sessionLog.error(`Failed to rephrase message in session ${sessionId}:`, error)
+      return { success: false, error: message }
+    } finally {
       managed.isAsyncOperationOngoing = false
       this.sendEvent({ type: 'async_operation', sessionId, isOngoing: false }, managed.workspace.id)
     }

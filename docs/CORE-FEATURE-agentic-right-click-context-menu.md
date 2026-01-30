@@ -162,7 +162,7 @@ At this point the menu becomes a **search surface**:
 | Phase 1b: Rewind | **Complete** | [`phase1b`](releases/agentic-right-click-context-menu-phase1b.md) | Edit & Resend + Copy wired, inline editor UI |
 | Assistant: Retry + Copy | **Complete** | — | Right-click assistant messages: Retry (rewind+resend) + Copy. See [`tasks/assistant-context-menu-retry.md`](tasks/assistant-context-menu-retry.md) |
 | Phase 1c: Branch | **Complete** | — | Fork conversation into new session, original untouched. See [`tasks/agentic-right-click-context-menu-phase1c.md`](tasks/agentic-right-click-context-menu-phase1c.md) |
-| Phase 2: Rephrase | Designed | — | Copycat "Regenerate Title" UX pattern (fade, toast, async) |
+| Phase 2: Rephrase | **Complete** | — | AI-powered rewrite via Sonnet, opens Edit & Resend box. See [`tasks/agentic-right-click-context-menu-phase2-rephrase.md`](tasks/agentic-right-click-context-menu-phase2-rephrase.md) |
 | Phase 3: Create Group | Designed | — | Shares infra with Phase 2 + same Regenerate Title pattern |
 | Phase 4: Living Menu | Concept | — | Needs skill registry design |
 | Phase 5+: Endless Menu | Vision | — | Long-term north star |
