@@ -151,6 +151,19 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     return () => clearInterval(interval)
   }, [sessionId, getDraft])
 
+  // Listen for external draft changes (e.g., rewind prefill)
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail.sessionId === sessionId) {
+        setInputValue(detail.text)
+        inputValueRef.current = detail.text
+      }
+    }
+    window.addEventListener('craft:draft-changed', handler)
+    return () => window.removeEventListener('craft:draft-changed', handler)
+  }, [sessionId])
+
   const handleInputChange = React.useCallback((value: string) => {
     setInputValue(value)
     inputValueRef.current = value

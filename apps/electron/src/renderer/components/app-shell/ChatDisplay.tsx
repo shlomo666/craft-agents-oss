@@ -2,13 +2,20 @@ import * as React from "react"
 import { useEffect, useState, useMemo, useCallback } from "react"
 import {
   AlertTriangle,
+  ArrowUp,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   CircleAlert,
+  Copy,
   ExternalLink,
+  GitBranch,
   Info,
+  Pencil,
   PenLine,
+  RefreshCw,
+  Sparkles,
+  Users,
   X,
 } from "lucide-react"
 import { motion, AnimatePresence } from "motion/react"
@@ -51,6 +58,13 @@ import { useTurnCardExpansion } from "@/hooks/useTurnCardExpansion"
 import type { SessionMeta } from "@/atoms/sessions"
 import { CHAT_LAYOUT } from "@/config/layout"
 import { flattenLabels } from "@craft-agent/shared/labels"
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  StyledContextMenuContent,
+  StyledContextMenuItem,
+  StyledContextMenuSeparator,
+} from "@/components/ui/styled-context-menu"
 
 // ============================================================================
 // Overlay State Types
@@ -417,6 +431,24 @@ export function ChatDisplay({
   // Set when a valued label is selected, cleared once the popover opens.
   const [autoOpenLabelId, setAutoOpenLabelId] = useState<string | null>(null)
 
+  // Inline edit state for "Edit & Resend" context menu action
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editingText, setEditingText] = useState('')
+  const editTextareaRef = React.useRef<HTMLTextAreaElement>(null)
+
+  // Auto-focus and auto-resize the edit textarea when editing starts
+  useEffect(() => {
+    if (editingMessageId && editTextareaRef.current) {
+      const ta = editTextareaRef.current
+      ta.focus()
+      // Move cursor to end
+      ta.selectionStart = ta.selectionEnd = ta.value.length
+      // Auto-resize to fit content
+      ta.style.height = 'auto'
+      ta.style.height = `${ta.scrollHeight}px`
+    }
+  }, [editingMessageId])
+
   // Focus textarea when session changes (tab switch) or zone gains focus via keyboard
   useEffect(() => {
     if (session) {
@@ -710,14 +742,122 @@ export function ChatDisplay({
                     // User turns - render with MemoizedMessageBubble
                     // Extra padding creates visual separation from AI responses
                     if (turn.type === 'user') {
+                      const isMenuDisabled = session.isProcessing || !!turn.message.isPending || !!turn.message.isQueued
+                      const isEditing = editingMessageId === turn.message.id
+
+                      const handleEditSend = () => {
+                        const text = editingText.trim()
+                        if (!text) return
+                        const sid = session.id
+                        const msgId = turn.message.id
+                        // Clear editing state, then rewind + send
+                        setEditingMessageId(null)
+                        setEditingText('')
+                        window.electronAPI.sessionCommand(sid, { type: 'rewind', messageId: msgId })
+                          .then(() => {
+                            console.log('[ChatDisplay] Rewind complete, sending edited message')
+                            onSendMessage(text)
+                          })
+                          .catch((err) => {
+                            console.error('[ChatDisplay] Rewind failed:', err)
+                            // Fallback: just send as a new message at the bottom
+                            onSendMessage(text)
+                          })
+                      }
+
                       return (
-                        <div key={`user-${turn.message.id}`} className={CHAT_LAYOUT.userMessagePadding}>
-                          <MemoizedMessageBubble
-                            message={turn.message}
-                            onOpenFile={onOpenFile}
-                            onOpenUrl={onOpenUrl}
-                          />
-                        </div>
+                        <ContextMenu key={`user-${turn.message.id}`}>
+                          <ContextMenuTrigger asChild disabled={isMenuDisabled || isEditing}>
+                            <div className={CHAT_LAYOUT.userMessagePadding}>
+                              {isEditing ? (
+                                /* Inline edit dialog — replaces the message bubble */
+                                <div className="flex flex-col items-end gap-2 w-full">
+                                  <div className="w-full max-w-[80%] flex flex-col gap-2">
+                                    <textarea
+                                      ref={editTextareaRef}
+                                      value={editingText}
+                                      onChange={(e) => {
+                                        setEditingText(e.target.value)
+                                        // Auto-resize
+                                        e.target.style.height = 'auto'
+                                        e.target.style.height = `${e.target.scrollHeight}px`
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                          e.preventDefault()
+                                          handleEditSend()
+                                        }
+                                        if (e.key === 'Escape') {
+                                          setEditingMessageId(null)
+                                          setEditingText('')
+                                        }
+                                      }}
+                                      className="w-full bg-foreground/5 rounded-[16px] px-5 py-3.5 text-sm resize-none outline-none focus:ring-1 focus:ring-foreground/20 min-h-[44px] max-h-[300px] overflow-y-auto"
+                                      placeholder="Edit your message..."
+                                    />
+                                    <div className="flex items-center gap-2 justify-end">
+                                      <button
+                                        onClick={() => {
+                                          setEditingMessageId(null)
+                                          setEditingText('')
+                                        }}
+                                        className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-md transition-colors"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        onClick={handleEditSend}
+                                        disabled={!editingText.trim()}
+                                        className="flex items-center gap-1.5 text-xs bg-foreground text-background px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-40"
+                                      >
+                                        <ArrowUp className="w-3 h-3" />
+                                        Send
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <MemoizedMessageBubble
+                                  message={turn.message}
+                                  onOpenFile={onOpenFile}
+                                  onOpenUrl={onOpenUrl}
+                                />
+                              )}
+                            </div>
+                          </ContextMenuTrigger>
+                          <StyledContextMenuContent>
+                            <StyledContextMenuItem onSelect={() => {
+                              setEditingMessageId(turn.message.id)
+                              setEditingText(turn.message.content)
+                            }}>
+                              <Pencil />
+                              Edit & Resend
+                            </StyledContextMenuItem>
+                            <StyledContextMenuItem disabled>
+                              <RefreshCw />
+                              Retry
+                            </StyledContextMenuItem>
+                            <StyledContextMenuSeparator />
+                            <StyledContextMenuItem disabled>
+                              <Sparkles />
+                              Rephrase...
+                            </StyledContextMenuItem>
+                            <StyledContextMenuItem disabled>
+                              <Users />
+                              Create Group...
+                            </StyledContextMenuItem>
+                            <StyledContextMenuSeparator />
+                            <StyledContextMenuItem disabled>
+                              <GitBranch />
+                              Branch from Here
+                            </StyledContextMenuItem>
+                            <StyledContextMenuSeparator />
+                            <StyledContextMenuItem onSelect={() => navigator.clipboard.writeText(turn.message.content)}>
+                              <Copy />
+                              Copy
+                            </StyledContextMenuItem>
+                          </StyledContextMenuContent>
+                        </ContextMenu>
                       )
                     }
 

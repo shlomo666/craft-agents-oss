@@ -476,6 +476,16 @@ export default function App() {
             }, 100)
             break
           }
+          case 'prefill_input': {
+            // Pre-fill the input with the rewound message text
+            sessionDraftsRef.current.set(effect.sessionId, effect.text)
+            window.electronAPI.setDraft(effect.sessionId, effect.text)
+            // Notify ChatPage to re-sync input value from draft ref
+            window.dispatchEvent(new CustomEvent('craft:draft-changed', {
+              detail: { sessionId: effect.sessionId, text: effect.text }
+            }))
+            break
+          }
         }
       }
 

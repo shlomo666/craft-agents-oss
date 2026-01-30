@@ -35,6 +35,7 @@ import type {
   AuthRequestEvent,
   AuthCompletedEvent,
   UsageUpdateEvent,
+  SessionRewoundEvent,
 } from '../types'
 import type { Message } from '../../../shared/types'
 import { generateMessageId, appendMessage } from '../helpers'
@@ -781,5 +782,31 @@ export function handleUsageUpdate(
       streaming,
     },
     effects: [],
+  }
+}
+
+/**
+ * Handle session_rewound - conversation truncated to a target message
+ * Replaces the entire messages array and emits prefill_input effect
+ */
+export function handleSessionRewound(
+  state: SessionState,
+  event: SessionRewoundEvent
+): ProcessResult {
+  return {
+    state: {
+      session: {
+        ...state.session,
+        messages: event.messages,
+        isProcessing: false,
+        currentStatus: undefined,
+      },
+      streaming: null,
+    },
+    effects: [{
+      type: 'prefill_input',
+      sessionId: event.sessionId,
+      text: event.prefillText,
+    }],
   }
 }

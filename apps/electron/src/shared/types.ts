@@ -407,6 +407,8 @@ export type SessionEvent =
   | { type: 'source_activated'; sessionId: string; sourceSlug: string; originalMessage: string }
   // Real-time usage update during processing (for context display)
   | { type: 'usage_update'; sessionId: string; tokenUsage: { inputTokens: number; contextWindow?: number } }
+  // Rewind event - conversation truncated to a specific message
+  | { type: 'session_rewound'; sessionId: string; messages: Message[]; prefillText: string }
 
 // Options for sendMessage
 export interface SendMessageOptions {
@@ -451,6 +453,7 @@ export type SessionCommand =
   | { type: 'setPendingPlanExecution'; planPath: string }
   | { type: 'markCompactionComplete' }
   | { type: 'clearPendingPlanExecution' }
+  | { type: 'rewind'; messageId: string }
 
 /**
  * Parameters for opening a new chat session

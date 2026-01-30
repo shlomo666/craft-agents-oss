@@ -43,6 +43,7 @@ import {
   handleAuthRequest,
   handleAuthCompleted,
   handleUsageUpdate,
+  handleSessionRewound,
 } from './handlers/session'
 
 /**
@@ -187,6 +188,9 @@ export function processEvent(
 
     case 'usage_update':
       return handleUsageUpdate(state, event)
+
+    case 'session_rewound':
+      return handleSessionRewound(state, event)
 
     default: {
       // Unknown event type - return state unchanged but as new reference

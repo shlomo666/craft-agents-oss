@@ -389,6 +389,17 @@ export interface UsageUpdateEvent {
 }
 
 /**
+ * Session rewound event - conversation truncated to a specific message
+ * Replaces messages array and emits prefill_input effect
+ */
+export interface SessionRewoundEvent {
+  type: 'session_rewound'
+  sessionId: string
+  messages: Message[]
+  prefillText: string
+}
+
+/**
  * Union of all agent events
  */
 export type AgentEvent =
@@ -427,6 +438,7 @@ export type AgentEvent =
   | AuthCompletedEvent
   | SourceActivatedEvent
   | UsageUpdateEvent
+  | SessionRewoundEvent
 
 /**
  * Side effects that need to be handled outside the pure processor
@@ -437,6 +449,7 @@ export type Effect =
   | { type: 'generate_title'; sessionId: string; userMessage: string }
   | { type: 'permission_mode_changed'; sessionId: string; permissionMode: PermissionMode }
   | { type: 'auto_retry'; sessionId: string; originalMessage: string; sourceSlug: string }
+  | { type: 'prefill_input'; sessionId: string; text: string }
 
 /**
  * Result of processing an event

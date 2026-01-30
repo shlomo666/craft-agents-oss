@@ -2788,6 +2788,70 @@ export class SessionManager {
   }
 
   /**
+   * Rewind a session to a specific user message.
+   * Truncates all messages after the target, aborts if processing,
+   * resets the agent, and emits a session_rewound event with the
+   * target message's content for input pre-fill.
+   */
+  async rewindToMessage(sessionId: string, messageId: string): Promise<void> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    // Ensure messages are loaded from disk (lazy-loaded sessions)
+    await this.ensureMessagesLoaded(managed)
+
+    // Find the target message
+    sessionLog.info(`Rewind: searching for message ${messageId} in ${managed.messages.length} messages`)
+    const messageIndex = managed.messages.findIndex(m => m.id === messageId)
+    if (messageIndex === -1) {
+      sessionLog.error(`Rewind: message ${messageId} not found. Available IDs: ${managed.messages.filter(m => m.role === 'user').map(m => m.id).join(', ')}`)
+      throw new Error(`Message ${messageId} not found in session ${sessionId}`)
+    }
+
+    const targetMessage = managed.messages[messageIndex]
+    if (targetMessage.role !== 'user') {
+      throw new Error(`Message ${messageId} is not a user message`)
+    }
+
+    sessionLog.info(`Rewinding session ${sessionId} to message ${messageId} (index ${messageIndex})`)
+
+    // Abort if currently processing
+    if (managed.isProcessing && managed.agent) {
+      managed.agent.forceAbort(AbortReason.UserStop)
+      managed.messageQueue = []
+    }
+    managed.isProcessing = false
+
+    // Capture the text for pre-fill before truncating
+    const prefillText = targetMessage.content
+
+    // Truncate messages: keep everything before the target message (exclude it)
+    managed.messages = managed.messages.slice(0, messageIndex)
+
+    // Reset streaming state
+    managed.streamingText = ''
+
+    // Reset agent so next message creates a fresh SDK session
+    // (the conversation history is different now)
+    managed.sdkSessionId = undefined
+    managed.agent = null
+
+    // Persist truncated session to disk
+    this.persistSession(managed)
+    await this.flushSession(sessionId)
+
+    // Notify renderer with new messages array and prefill text
+    this.sendEvent({
+      type: 'session_rewound',
+      sessionId,
+      messages: managed.messages,
+      prefillText,
+    }, managed.workspace.id)
+  }
+
+  /**
    * Central handler for when processing stops (any reason).
    * Single source of truth for cleanup and queue processing.
    *
