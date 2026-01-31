@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { extractOverlayData, type OverlayData } from '../../lib/tool-parsers'
+import { CopyButton } from './CopyButton'
 import { Markdown } from '../markdown'
 import type { ActivityItem } from '../chat/TurnCard'
 
@@ -238,12 +239,6 @@ function OutputRenderer({
     case 'terminal':
       return (
         <div className="p-3 font-mono text-xs">
-          {overlayData.command && (
-            <div className="mb-2">
-              <span className="text-muted-foreground">$ </span>
-              <span className={cn('text-foreground', wordWrap ? 'break-words' : '')}>{overlayData.command}</span>
-            </div>
-          )}
           <pre className={cn(wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre', 'text-foreground/80')}>
             {overlayData.output}
           </pre>
@@ -304,6 +299,21 @@ export function TimelineActivityCard({ activity, isFocused, theme = 'dark', word
   const jsonTheme = useMemo(() => (theme === 'dark' ? darkJsonTheme : lightJsonTheme), [theme])
   const toolInput = activity.toolInput as Record<string, unknown> | undefined
 
+  const isBash = activity.toolName?.toLowerCase() === 'bash'
+  const bashCommand = isBash ? (toolInput?.command as string) || '' : ''
+
+  const outputCopyText = useMemo(() => {
+    if (!overlayData) return ''
+    switch (overlayData.type) {
+      case 'code': return overlayData.content
+      case 'terminal': return overlayData.output
+      case 'document': return overlayData.content
+      case 'json': return overlayData.rawContent
+      case 'generic': return overlayData.content
+      default: return ''
+    }
+  }, [overlayData])
+
   const displayName = activity.displayName || activity.intent || ''
 
   return (
@@ -358,12 +368,30 @@ export function TimelineActivityCard({ activity, isFocused, theme = 'dark', word
       {/* Side-by-side: Input (left) | Output (right) */}
       <div
         className="grid grid-cols-2 divide-x divide-foreground/[0.06] overflow-hidden"
-        style={{ height: isExpanded ? '80vh' : '25vh' }}
+        style={isExpanded ? { maxHeight: '80vh' } : { height: '25vh' }}
       >
         {/* Left: Input parameters */}
         <div className="overflow-y-auto p-3 h-full">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold mb-2">Input</div>
-          {toolInput && Object.keys(toolInput).length > 0 ? (
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold">Input</div>
+            <CopyButton
+              content={isBash ? (bashCommand || '') : JSON.stringify(toolInput ?? {}, null, 2)}
+              title="Copy input"
+              className="w-5 h-5"
+            />
+          </div>
+          {isBash ? (
+            bashCommand ? (
+              <pre className={cn(
+                'font-mono text-xs text-foreground/90 p-2 rounded-md bg-foreground/[0.03]',
+                wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+              )}>
+                <span className="text-muted-foreground">$ </span>{bashCommand}
+              </pre>
+            ) : (
+              <div className="text-xs text-muted-foreground italic">No command</div>
+            )
+          ) : toolInput && Object.keys(toolInput).length > 0 ? (
             <JsonView
               value={toolInput}
               style={jsonTheme}
@@ -390,7 +418,14 @@ export function TimelineActivityCard({ activity, isFocused, theme = 'dark', word
 
         {/* Right: Output */}
         <div className={cn('overflow-y-auto h-full', !wordWrap && 'overflow-x-auto')}>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold px-3 pt-3 pb-1">Output</div>
+          <div className="flex items-center justify-between px-3 pt-3 pb-1">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold">Output</div>
+            <CopyButton
+              content={outputCopyText}
+              title="Copy output"
+              className="w-5 h-5"
+            />
+          </div>
           <OutputRenderer overlayData={overlayData} theme={theme} wordWrap={wordWrap} />
         </div>
       </div>

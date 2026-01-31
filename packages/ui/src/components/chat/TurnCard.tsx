@@ -28,7 +28,7 @@ import { Spinner } from '../ui/LoadingIndicator'
 import { parseDiffFromFile, type FileContents } from '@pierre/diffs'
 import { getDiffStats } from '../code-viewer'
 import { TurnCardActionsMenu } from './TurnCardActionsMenu'
-import { computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, type ActivityGroup, type AssistantTurn } from './turn-utils'
+import { computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, getStreamingText, type ActivityGroup, type AssistantTurn } from './turn-utils'
 import { DocumentFormattedMarkdownOverlay } from '../overlay'
 import { AcceptPlanDropdown } from './AcceptPlanDropdown'
 
@@ -1351,6 +1351,68 @@ export function ResponseCard({
 }
 
 // ============================================================================
+// Streaming Text Card (inline intermediate text display)
+// ============================================================================
+
+/**
+ * StreamingTextCard - Shows intermediate text streaming in real-time.
+ *
+ * Unlike ResponseCard, this has NO buffering delay - text appears immediately.
+ * Positioned in the same spot as ResponseCard, between activities and final response.
+ * Uses throttled content updates (200ms) for Markdown parsing performance.
+ */
+function StreamingTextCard({
+  text,
+  onOpenFile,
+  onOpenUrl,
+}: {
+  text: string
+  onOpenFile?: (path: string) => void
+  onOpenUrl?: (url: string) => void
+}) {
+  // Throttled content for display - avoids re-parsing markdown on every delta
+  const [displayedText, setDisplayedText] = useState(text)
+  const lastUpdateRef = useRef(Date.now())
+  const THROTTLE_MS = 200
+
+  useEffect(() => {
+    const now = Date.now()
+    const elapsed = now - lastUpdateRef.current
+    if (elapsed >= THROTTLE_MS) {
+      setDisplayedText(text)
+      lastUpdateRef.current = now
+    } else {
+      const timeout = setTimeout(() => {
+        setDisplayedText(text)
+        lastUpdateRef.current = Date.now()
+      }, THROTTLE_MS - elapsed)
+      return () => clearTimeout(timeout)
+    }
+  }, [text])
+
+  const MAX_HEIGHT = 540
+
+  return (
+    <div className="bg-background shadow-minimal rounded-[8px] overflow-hidden">
+      <div
+        className="pl-[22px] pr-4 py-3 text-sm overflow-y-auto"
+        style={{ maxHeight: MAX_HEIGHT }}
+      >
+        <Markdown mode="minimal" onUrlClick={onOpenUrl} onFileClick={onOpenFile}>
+          {displayedText}
+        </Markdown>
+      </div>
+      <div className={cn("px-4 py-2 border-t border-border/30 flex items-center bg-muted/20", SIZE_CONFIG.fontSize)}>
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Spinner className={SIZE_CONFIG.spinnerSize} />
+          <span>Streaming...</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
 // TodoList Component (for TodoWrite tool visualization)
 // ============================================================================
 
@@ -1513,6 +1575,13 @@ export const TurnCard = React.memo(function TurnCard({
     [response]
   )
 
+  // Extract streaming intermediate text for inline display.
+  // When non-null, StreamingTextCard renders the text visibly instead of
+  // the truncated "Thinking..." ActivityRow.
+  const streamingText = useMemo(
+    () => getStreamingText(activities),
+    [activities]
+  )
 
   // Compute preview text with cross-fade animation
   const previewText = useMemo(
@@ -1577,7 +1646,8 @@ export const TurnCard = React.memo(function TurnCard({
   // Determine if thinking indicator should show using the phase-based state machine.
   // This properly handles the "gap" state (awaiting) between tool completion and next action,
   // which was previously causing the turn card to "disappear".
-  const isThinking = shouldShowThinkingIndicator(turnPhase, isBuffering)
+  // Suppress when StreamingTextCard is visible (it replaces the "Thinking..." indicator).
+  const isThinking = shouldShowThinkingIndicator(turnPhase, isBuffering) && !streamingText
 
   return (
     <div className="space-y-1">
@@ -1664,7 +1734,9 @@ export const TurnCard = React.memo(function TurnCard({
                 >
                   {/* Grouped view for Task subagents */}
                   {groupedActivities ? (
-                    groupedActivities.map((item, index) => (
+                    groupedActivities
+                      .filter(item => !(streamingText && !isActivityGroup(item) && item.id === streamingText.activityId))
+                      .map((item, index) => (
                       isActivityGroup(item) ? (
                         <ActivityGroupRow
                           key={item.parent.id}
@@ -1692,7 +1764,9 @@ export const TurnCard = React.memo(function TurnCard({
                     ))
                   ) : (
                     /* Flat view for simple tool calls */
-                    sortedActivities.map((activity, index) => (
+                    sortedActivities
+                      .filter(a => !(streamingText && a.id === streamingText.activityId))
+                      .map((activity, index) => (
                       <motion.div
                         key={activity.id}
                         initial={{ opacity: 0, x: -8 }}
@@ -1738,6 +1812,17 @@ export const TurnCard = React.memo(function TurnCard({
         <div className={cn("flex items-center gap-2 px-3 py-1.5 text-muted-foreground", SIZE_CONFIG.fontSize)}>
           <Spinner className={SIZE_CONFIG.spinnerSize} />
           <span>{isBuffering ? 'Preparing response...' : 'Thinking...'}</span>
+        </div>
+      )}
+
+      {/* Streaming Text Card - shows intermediate text in real-time */}
+      {streamingText && (
+        <div className={cn("select-text", hasActivities && "mt-2")}>
+          <StreamingTextCard
+            text={streamingText.content}
+            onOpenFile={onOpenFile}
+            onOpenUrl={onOpenUrl}
+          />
         </div>
       )}
 

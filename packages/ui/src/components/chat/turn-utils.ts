@@ -1152,6 +1152,42 @@ export function groupActivitiesByParent(
   return result
 }
 
+// ============================================================================
+// Streaming Text Extraction
+// ============================================================================
+
+/**
+ * Info about an actively streaming intermediate text message.
+ * Used by TurnCard to display streaming text in an inline card.
+ */
+export interface StreamingTextInfo {
+  content: string
+  activityId: string
+}
+
+/**
+ * Extract the currently streaming intermediate text from turn activities.
+ *
+ * Returns the latest intermediate activity that is actively streaming
+ * (status: 'running') and has content. Returns null when no text is streaming.
+ *
+ * This drives the StreamingTextCard: when non-null, the card shows the text
+ * inline instead of the truncated "Thinking..." ActivityRow.
+ */
+export function getStreamingText(activities: ActivityItem[]): StreamingTextInfo | null {
+  // Walk backwards to find the latest running intermediate with content
+  for (let i = activities.length - 1; i >= 0; i--) {
+    const a = activities[i]!
+    if (a.type === 'intermediate' && a.status === 'running' && a.content?.trim()) {
+      return {
+        content: a.content,
+        activityId: a.id,
+      }
+    }
+  }
+  return null
+}
+
 /**
  * Counts the total number of activities including those inside groups
  */
