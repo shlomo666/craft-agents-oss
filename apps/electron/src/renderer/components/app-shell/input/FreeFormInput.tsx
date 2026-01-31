@@ -304,22 +304,6 @@ export function FreeFormInput({
   const inputRef = React.useRef(input)
   inputRef.current = input // Keep ref in sync with state
 
-  // Force-clear internal state when edit/retry operations dispatch the clear event.
-  // This handles the case where inputValue is already '' — React won't re-render,
-  // so the inputValue sync effect above can't cancel the debounce timer.
-  React.useEffect(() => {
-    const handler = () => {
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current)
-        syncTimeoutRef.current = null
-      }
-      setInput('')
-      prevInputValueRef.current = ''
-    }
-    window.addEventListener('craft:force-clear-input', handler)
-    return () => window.removeEventListener('craft:force-clear-input', handler)
-  }, [])
-
   React.useEffect(() => {
     return () => {
       // Cancel pending debounced sync

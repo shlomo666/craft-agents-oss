@@ -788,12 +788,22 @@ export function handleUsageUpdate(
 
 /**
  * Handle session_rewound - conversation truncated to a target message
- * Replaces the entire messages array and emits prefill_input effect
+ * Replaces the entire messages array and optionally emits prefill_input effect.
+ * When prefillText is empty (skipPrefill rewinds like Edit & Resend / Retry),
+ * the input is left untouched so any user-typed draft is preserved.
  */
 export function handleSessionRewound(
   state: SessionState,
   event: SessionRewoundEvent
 ): ProcessResult {
+  const effects: ProcessResult['effects'] = []
+  if (event.prefillText) {
+    effects.push({
+      type: 'prefill_input',
+      sessionId: event.sessionId,
+      text: event.prefillText,
+    })
+  }
   return {
     state: {
       session: {
@@ -804,11 +814,7 @@ export function handleSessionRewound(
       },
       streaming: null,
     },
-    effects: [{
-      type: 'prefill_input',
-      sessionId: event.sessionId,
-      text: event.prefillText,
-    }],
+    effects,
   }
 }
 
