@@ -246,7 +246,7 @@ function renderContentWithBadges(
         onFileClick={onFileClick}
         className="text-sm [&_a]:underline [&_code]:bg-foreground/10"
       >
-        {content}
+        {content.replace(/\n/g, '  \n')}
       </Markdown>
     )
   }
@@ -444,7 +444,7 @@ export function UserMessageBubble({
               onFileClick={onFileClick}
               className="text-sm [&_a]:underline [&_code]:bg-foreground/10"
             >
-              {displayContent}
+              {displayContent.replace(/\n/g, '  \n')}
             </Markdown>
           )
         }

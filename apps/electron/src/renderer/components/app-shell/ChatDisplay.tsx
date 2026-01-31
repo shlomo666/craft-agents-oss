@@ -768,10 +768,11 @@ export function ChatDisplay({
                         const sid = session.id
                         const msgId = turn.message.id
                         const attachmentsToSend = editingAttachments.length > 0 ? [...editingAttachments] : undefined
-                        // Clear editing state, then rewind + send
+                        // Clear editing state and input draft, then rewind + send
                         setEditingMessageId(null)
                         setEditingText('')
                         setEditingAttachments([])
+                        onInputChange?.('')
                         window.electronAPI.sessionCommand(sid, { type: 'rewind', messageId: msgId, skipPrefill: true })
                           .then(() => {
                             console.log('[ChatDisplay] Rewind complete, sending edited message')
@@ -921,6 +922,7 @@ export function ChatDisplay({
                               const msgId = turn.message.id
                               const text = turn.message.content
                               const attachments = turn.message.attachments?.length ? turn.message.attachments : undefined
+                              onInputChange?.('')
                               window.electronAPI.sessionCommand(sid, { type: 'rewind', messageId: msgId, skipPrefill: true })
                                 .then(() => onSendMessage(text, undefined, undefined, attachments))
                                 .catch((err) => {
@@ -1136,6 +1138,7 @@ export function ChatDisplay({
                             <StyledContextMenuItem onSelect={() => {
                               const userMsg = precedingUserTurn.message
                               const userAttachments = userMsg.attachments?.length ? userMsg.attachments : undefined
+                              onInputChange?.('')
                               window.electronAPI.sessionCommand(session.id, { type: 'rewind', messageId: userMsg.id, skipPrefill: true })
                                 .then(() => {
                                   onSendMessage(userMsg.content, undefined, undefined, userAttachments)
