@@ -773,6 +773,7 @@ export function ChatDisplay({
                         setEditingText('')
                         setEditingAttachments([])
                         onInputChange?.('')
+                        window.dispatchEvent(new Event('craft:force-clear-input'))
                         window.electronAPI.sessionCommand(sid, { type: 'rewind', messageId: msgId, skipPrefill: true })
                           .then(() => {
                             console.log('[ChatDisplay] Rewind complete, sending edited message')
@@ -923,6 +924,7 @@ export function ChatDisplay({
                               const text = turn.message.content
                               const attachments = turn.message.attachments?.length ? turn.message.attachments : undefined
                               onInputChange?.('')
+                              window.dispatchEvent(new Event('craft:force-clear-input'))
                               window.electronAPI.sessionCommand(sid, { type: 'rewind', messageId: msgId, skipPrefill: true })
                                 .then(() => onSendMessage(text, undefined, undefined, attachments))
                                 .catch((err) => {
@@ -1139,6 +1141,7 @@ export function ChatDisplay({
                               const userMsg = precedingUserTurn.message
                               const userAttachments = userMsg.attachments?.length ? userMsg.attachments : undefined
                               onInputChange?.('')
+                              window.dispatchEvent(new Event('craft:force-clear-input'))
                               window.electronAPI.sessionCommand(session.id, { type: 'rewind', messageId: userMsg.id, skipPrefill: true })
                                 .then(() => {
                                   onSendMessage(userMsg.content, undefined, undefined, userAttachments)

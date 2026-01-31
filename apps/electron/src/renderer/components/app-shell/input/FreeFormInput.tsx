@@ -273,12 +273,18 @@ export function FreeFormInput({
     }
   }, [enabledSourceSlugs])
 
-  // Sync from parent when inputValue changes externally (e.g., switching sessions)
+  // Sync from parent when inputValue changes externally (e.g., switching sessions, edit-rewind clear)
   const prevInputValueRef = React.useRef(inputValue)
   React.useEffect(() => {
     if (inputValue !== undefined && inputValue !== prevInputValueRef.current) {
       setInput(inputValue)
       prevInputValueRef.current = inputValue
+      // Cancel any pending debounced sync — it carries a stale value that would
+      // overwrite the externally-set inputValue once the timer fires.
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current)
+        syncTimeoutRef.current = null
+      }
     }
   }, [inputValue])
 
@@ -297,6 +303,22 @@ export function FreeFormInput({
   // Also cleanup any pending debounced sync
   const inputRef = React.useRef(input)
   inputRef.current = input // Keep ref in sync with state
+
+  // Force-clear internal state when edit/retry operations dispatch the clear event.
+  // This handles the case where inputValue is already '' — React won't re-render,
+  // so the inputValue sync effect above can't cancel the debounce timer.
+  React.useEffect(() => {
+    const handler = () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current)
+        syncTimeoutRef.current = null
+      }
+      setInput('')
+      prevInputValueRef.current = ''
+    }
+    window.addEventListener('craft:force-clear-input', handler)
+    return () => window.removeEventListener('craft:force-clear-input', handler)
+  }, [])
 
   React.useEffect(() => {
     return () => {
