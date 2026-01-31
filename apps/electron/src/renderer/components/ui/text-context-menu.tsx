@@ -185,7 +185,7 @@ export function TextContextMenu({
     <ContextMenu onOpenChange={handleOpenChange}>
       <ContextMenuTrigger asChild disabled={disabled}>
         <div className={cn(
-          rephraseMode === 'all' && 'animate-shimmer-text',
+          rephraseMode !== 'idle' && 'rephrase-processing',
           isGlowing && 'rephrase-glow',
         )}>
           {children}
