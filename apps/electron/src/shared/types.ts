@@ -465,6 +465,7 @@ export type SessionCommand =
   | { type: 'markCompactionComplete' }
   | { type: 'clearPendingPlanExecution' }
   | { type: 'rewind'; messageId: string }
+  | { type: 'delete'; messageId: string }
   | { type: 'branch'; messageId: string }
   | { type: 'rephrase'; messageId: string }
   | { type: 'rephrase_text'; text: string; availableMentions?: string[] }

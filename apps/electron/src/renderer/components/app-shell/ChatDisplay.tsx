@@ -10,6 +10,7 @@ import {
   Copy,
   ExternalLink,
   GitBranch,
+  Trash2,
   Info,
   Pencil,
   PenLine,
@@ -932,6 +933,18 @@ export function ChatDisplay({
                             }}>
                               <GitBranch />
                               Branch from Here
+                            </StyledContextMenuItem>
+                            <StyledContextMenuSeparator />
+                            <StyledContextMenuItem onSelect={() => {
+                              const sid = session.id
+                              const msgId = turn.message.id
+                              window.electronAPI.sessionCommand(sid, { type: 'delete', messageId: msgId })
+                                .catch((err: unknown) => {
+                                  console.error('[ChatDisplay] Delete failed:', err)
+                                })
+                            }}>
+                              <Trash2 />
+                              Delete
                             </StyledContextMenuItem>
                             <StyledContextMenuSeparator />
                             <StyledContextMenuItem onSelect={() => navigator.clipboard.writeText(turn.message.content)}>

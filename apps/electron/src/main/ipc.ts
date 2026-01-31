@@ -386,6 +386,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
         return sessionManager.clearPendingPlanExecution(sessionId)
       case 'rewind':
         return sessionManager.rewindToMessage(sessionId, command.messageId)
+      case 'delete':
+        return sessionManager.deleteFromMessage(sessionId, command.messageId)
       case 'branch':
         return sessionManager.branchFromMessage(sessionId, command.messageId)
       case 'rephrase':

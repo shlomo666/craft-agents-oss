@@ -2983,6 +2983,54 @@ ${message}`
   }
 
   /**
+   * Delete from a message: truncate everything from the target user message
+   * onwards. Same as rewind, but does not pre-fill the input with the
+   * deleted message content.
+   */
+  async deleteFromMessage(sessionId: string, messageId: string): Promise<void> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    await this.ensureMessagesLoaded(managed)
+
+    const messageIndex = managed.messages.findIndex(m => m.id === messageId)
+    if (messageIndex === -1) {
+      throw new Error(`Message ${messageId} not found in session ${sessionId}`)
+    }
+
+    const targetMessage = managed.messages[messageIndex]
+    if (targetMessage.role !== 'user') {
+      throw new Error(`Message ${messageId} is not a user message`)
+    }
+
+    sessionLog.info(`Deleting from message ${messageId} in session ${sessionId} (index ${messageIndex})`)
+
+    if (managed.isProcessing && managed.agent) {
+      managed.agent.forceAbort(AbortReason.UserStop)
+      managed.messageQueue = []
+    }
+    managed.isProcessing = false
+
+    managed.messages = managed.messages.slice(0, messageIndex)
+    managed.streamingText = ''
+    managed.sdkSessionId = undefined
+    managed.agent = null
+    managed.needsRecoveryContext = managed.messages.length > 0
+
+    this.persistSession(managed)
+    await this.flushSession(sessionId)
+
+    this.sendEvent({
+      type: 'session_rewound',
+      sessionId,
+      messages: managed.messages,
+      prefillText: '',
+    }, managed.workspace.id)
+  }
+
+  /**
    * Branch from a message: create a new session with conversation history
    * copied up to (excluding) the target user message. The original session
    * is untouched. The target message text is returned for input pre-fill
