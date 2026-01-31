@@ -37,7 +37,7 @@ import {
   type SessionMetadata,
   type TodoState,
 } from '@craft-agent/shared/sessions'
-import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS } from '@craft-agent/shared/sources'
+import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS, sourceNeedsAuthentication } from '@craft-agent/shared/sources'
 import { ConfigWatcher, type ConfigWatcherCallbacks } from '@craft-agent/shared/config'
 import { getAuthState } from '@craft-agent/shared/auth'
 import { setAnthropicOptionsEnv, setPathToClaudeCodeExecutable, setInterceptorPath, setExecutable } from '@craft-agent/shared/agent'
@@ -704,7 +704,7 @@ export class SessionManager {
     // Rebuild MCP and API servers for session's enabled sources
     const enabledSlugs = managed.enabledSourceSlugs || []
     const enabledSources = allSources.filter(s =>
-      enabledSlugs.includes(s.config.slug) && s.config.enabled && s.config.isAuthenticated
+      enabledSlugs.includes(s.config.slug) && s.config.enabled
     )
     // Pass session path so large API responses can be saved to session folder
     const sessionPath = getSessionStoragePath(workspaceRootPath, managed.id)
@@ -1667,8 +1667,8 @@ export class SessionManager {
           return false
         }
 
-        // Check if source is authenticated (if it requires auth)
-        if (!source.config.isAuthenticated) {
+        // Check if source requires authentication and isn't authenticated
+        if (sourceNeedsAuthentication(source)) {
           sessionLog.warn(`Source ${sourceSlug} requires authentication`)
           return false
         }
@@ -1708,7 +1708,7 @@ export class SessionManager {
 
         // Apply source servers to the agent
         const intendedSlugs = allEnabledSources
-          .filter(s => s.config.enabled && s.config.isAuthenticated)
+          .filter(s => s.config.enabled)
           .map(s => s.config.slug)
         managed.agent!.setSourceServers(mcpServers, apiServers, intendedSlugs)
 
@@ -2081,7 +2081,8 @@ export class SessionManager {
       managed.agent.setAllSources(allSources)
 
       // Set active source servers (tools are only available from these)
-      const intendedSlugs = sources.filter(s => s.config.enabled && s.config.isAuthenticated).map(s => s.config.slug)
+      // Use all enabled sources as intended — auth issues are surfaced separately via formatSourceState()
+      const intendedSlugs = sources.filter(s => s.config.enabled).map(s => s.config.slug)
       managed.agent.setSourceServers(mcpServers, apiServers, intendedSlugs)
       sessionLog.info(`Applied ${Object.keys(mcpServers).length} MCP + ${Object.keys(apiServers).length} API sources to active agent (${allSources.length} total)`)
     }
@@ -2612,7 +2613,8 @@ export class SessionManager {
       const apiCount = Object.keys(apiServers).length
       if (mcpCount > 0 || apiCount > 0 || managed.enabledSourceSlugs.length > 0) {
         // Pass intended slugs so agent shows sources as active even if build failed
-        const intendedSlugs = sources.filter(s => s.config.enabled && s.config.isAuthenticated).map(s => s.config.slug)
+        // Use all enabled sources — auth issues are surfaced separately via formatSourceState()
+        const intendedSlugs = sources.filter(s => s.config.enabled).map(s => s.config.slug)
         agent.setSourceServers(mcpServers, apiServers, intendedSlugs)
         sessionLog.info(`Applied ${mcpCount} MCP + ${apiCount} API sources to session ${sessionId} (${allSources.length} total)`)
       }

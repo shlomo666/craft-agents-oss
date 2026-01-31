@@ -64,6 +64,7 @@ export {
   SourceCredentialManager,
   getSourceCredentialManager,
   getSourcesNeedingAuth,
+  sourceNeedsAuthentication,
 } from './credential-manager.ts';
 export type {
   AuthResult,
