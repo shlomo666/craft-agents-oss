@@ -12,10 +12,10 @@ import {
   GitBranch,
   Trash2,
   Info,
+  Paperclip,
   Pencil,
   PenLine,
   RefreshCw,
-  Sparkles,
   Users,
   X,
 } from "lucide-react"
@@ -69,7 +69,6 @@ import {
   StyledContextMenuItem,
   StyledContextMenuSeparator,
 } from "@/components/ui/styled-context-menu"
-import type { RephraseResult } from "../../../shared/types"
 import { TextContextMenu } from "@/components/ui/text-context-menu"
 
 // ============================================================================
@@ -110,7 +109,7 @@ type OverlayState =
 
 interface ChatDisplayProps {
   session: Session | null
-  onSendMessage: (message: string, attachments?: FileAttachment[], skillSlugs?: string[]) => void
+  onSendMessage: (message: string, attachments?: FileAttachment[], skillSlugs?: string[], storedAttachments?: StoredAttachment[]) => void
   onOpenFile: (path: string) => void
   onOpenUrl: (url: string) => void
   // Model selection
@@ -451,8 +450,8 @@ export function ChatDisplay({
   const [editingText, setEditingText] = useState('')
   const editTextareaRef = React.useRef<HTMLTextAreaElement>(null)
 
-  // Rephrase loading state — tracks which message is being rephrased by AI
-  const [rephrasingMessageId, setRephrasingMessageId] = useState<string | null>(null)
+  // Editing attachments state — preserved/managed during inline edit
+  const [editingAttachments, setEditingAttachments] = useState<StoredAttachment[]>([])
 
   // Auto-focus and auto-resize the edit textarea when editing starts
   useEffect(() => {
@@ -762,25 +761,26 @@ export function ChatDisplay({
                     if (turn.type === 'user') {
                       const isMenuDisabled = session.isProcessing || !!turn.message.isPending || !!turn.message.isQueued
                       const isEditing = editingMessageId === turn.message.id
-                      const isRephrasing = rephrasingMessageId === turn.message.id
 
                       const handleEditSend = () => {
                         const text = editingText.trim()
                         if (!text) return
                         const sid = session.id
                         const msgId = turn.message.id
+                        const attachmentsToSend = editingAttachments.length > 0 ? [...editingAttachments] : undefined
                         // Clear editing state, then rewind + send
                         setEditingMessageId(null)
                         setEditingText('')
-                        window.electronAPI.sessionCommand(sid, { type: 'rewind', messageId: msgId })
+                        setEditingAttachments([])
+                        window.electronAPI.sessionCommand(sid, { type: 'rewind', messageId: msgId, skipPrefill: true })
                           .then(() => {
                             console.log('[ChatDisplay] Rewind complete, sending edited message')
-                            onSendMessage(text)
+                            onSendMessage(text, undefined, undefined, attachmentsToSend)
                           })
                           .catch((err) => {
                             console.error('[ChatDisplay] Rewind failed:', err)
                             // Fallback: just send as a new message at the bottom
-                            onSendMessage(text)
+                            onSendMessage(text, undefined, undefined, attachmentsToSend)
                           })
                       }
 
@@ -828,17 +828,60 @@ export function ChatDisplay({
                                           if (e.key === 'Escape') {
                                             setEditingMessageId(null)
                                             setEditingText('')
+                                            setEditingAttachments([])
                                           }
                                         }}
                                         className="w-full bg-foreground/5 rounded-[16px] px-5 py-3.5 text-sm resize-none outline-none focus:ring-1 focus:ring-foreground/20 min-h-[44px] max-h-[300px] overflow-y-auto"
                                         placeholder="Edit your message..."
                                       />
                                     </TextContextMenu>
+                                    {/* Attachment strip — show existing/new attachments with remove/add controls */}
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      {editingAttachments.map((att) => (
+                                        <div key={att.id} className="relative group">
+                                          {att.type === 'image' && att.thumbnailBase64 ? (
+                                            <img
+                                              src={`data:${att.mimeType};base64,${att.thumbnailBase64}`}
+                                              alt={att.name}
+                                              className="w-12 h-12 rounded-lg object-cover border border-foreground/10"
+                                            />
+                                          ) : (
+                                            <div className="h-12 rounded-lg bg-foreground/5 border border-foreground/10 px-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+                                              <Paperclip className="w-3 h-3 shrink-0" />
+                                              <span className="max-w-[80px] truncate">{att.name}</span>
+                                            </div>
+                                          )}
+                                          <button
+                                            onClick={() => setEditingAttachments(prev => prev.filter(a => a.id !== att.id))}
+                                            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-foreground text-background flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                          >
+                                            <X className="w-2.5 h-2.5" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                      <button
+                                        onClick={async () => {
+                                          const paths = await window.electronAPI.openFileDialog()
+                                          if (!paths.length) return
+                                          for (const path of paths) {
+                                            const att = await window.electronAPI.readFileAttachment(path)
+                                            if (!att) continue
+                                            const stored = await window.electronAPI.storeAttachment(session.id, att)
+                                            setEditingAttachments(prev => [...prev, stored])
+                                          }
+                                        }}
+                                        className="h-12 w-12 rounded-lg border border-dashed border-foreground/20 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                                        title="Add attachment"
+                                      >
+                                        <Paperclip className="w-4 h-4" />
+                                      </button>
+                                    </div>
                                     <div className="flex items-center gap-2 justify-end">
                                       <button
                                         onClick={() => {
                                           setEditingMessageId(null)
                                           setEditingText('')
+                                          setEditingAttachments([])
                                         }}
                                         className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-md transition-colors"
                                       >
@@ -856,13 +899,11 @@ export function ChatDisplay({
                                   </div>
                                 </div>
                               ) : (
-                                <div className={isRephrasing ? 'animate-shimmer-text' : undefined}>
-                                  <MemoizedMessageBubble
-                                    message={turn.message}
-                                    onOpenFile={onOpenFile}
-                                    onOpenUrl={onOpenUrl}
-                                  />
-                                </div>
+                                <MemoizedMessageBubble
+                                  message={turn.message}
+                                  onOpenFile={onOpenFile}
+                                  onOpenUrl={onOpenUrl}
+                                />
                               )}
                             </div>
                           </ContextMenuTrigger>
@@ -870,6 +911,7 @@ export function ChatDisplay({
                             <StyledContextMenuItem onSelect={() => {
                               setEditingMessageId(turn.message.id)
                               setEditingText(turn.message.content)
+                              setEditingAttachments(turn.message.attachments || [])
                             }}>
                               <Pencil />
                               Edit & Resend
@@ -878,45 +920,16 @@ export function ChatDisplay({
                               const sid = session.id
                               const msgId = turn.message.id
                               const text = turn.message.content
-                              window.electronAPI.sessionCommand(sid, { type: 'rewind', messageId: msgId })
-                                .then(() => onSendMessage(text))
+                              const attachments = turn.message.attachments?.length ? turn.message.attachments : undefined
+                              window.electronAPI.sessionCommand(sid, { type: 'rewind', messageId: msgId, skipPrefill: true })
+                                .then(() => onSendMessage(text, undefined, undefined, attachments))
                                 .catch((err) => {
                                   console.error('[ChatDisplay] Retry rewind failed:', err)
-                                  onSendMessage(text)
+                                  onSendMessage(text, undefined, undefined, attachments)
                                 })
                             }}>
                               <RefreshCw />
                               Retry
-                            </StyledContextMenuItem>
-                            <StyledContextMenuSeparator />
-                            <StyledContextMenuItem
-                              disabled={rephrasingMessageId === turn.message.id}
-                              onSelect={() => {
-                                const sid = session.id
-                                const msgId = turn.message.id
-                                setRephrasingMessageId(msgId)
-                                window.electronAPI.sessionCommand(sid, { type: 'rephrase', messageId: msgId })
-                                  .then((result) => {
-                                    const r = result as RephraseResult | undefined
-                                    if (r?.success && r.rephrasedText) {
-                                      setEditingMessageId(msgId)
-                                      setEditingText(r.rephrasedText)
-                                      toast.success('Message rephrased')
-                                    } else {
-                                      toast.error(r?.error || 'Failed to rephrase message')
-                                    }
-                                  })
-                                  .catch((err: unknown) => {
-                                    console.error('[ChatDisplay] Rephrase failed:', err)
-                                    toast.error('Failed to rephrase message')
-                                  })
-                                  .finally(() => {
-                                    setRephrasingMessageId(null)
-                                  })
-                              }}
-                            >
-                              <Sparkles />
-                              {rephrasingMessageId === turn.message.id ? 'Rephrasing...' : 'Rephrase...'}
                             </StyledContextMenuItem>
                             <StyledContextMenuItem disabled>
                               <Users />
@@ -1122,13 +1135,14 @@ export function ChatDisplay({
                           {precedingUserTurn && (
                             <StyledContextMenuItem onSelect={() => {
                               const userMsg = precedingUserTurn.message
-                              window.electronAPI.sessionCommand(session.id, { type: 'rewind', messageId: userMsg.id })
+                              const userAttachments = userMsg.attachments?.length ? userMsg.attachments : undefined
+                              window.electronAPI.sessionCommand(session.id, { type: 'rewind', messageId: userMsg.id, skipPrefill: true })
                                 .then(() => {
-                                  onSendMessage(userMsg.content)
+                                  onSendMessage(userMsg.content, undefined, undefined, userAttachments)
                                 })
                                 .catch((err) => {
                                   console.error('[ChatDisplay] Retry rewind failed:', err)
-                                  onSendMessage(userMsg.content)
+                                  onSendMessage(userMsg.content, undefined, undefined, userAttachments)
                                 })
                             }}>
                               <RefreshCw />

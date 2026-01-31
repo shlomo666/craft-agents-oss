@@ -739,7 +739,7 @@ export default function App() {
     window.electronAPI.sessionCommand(sessionId, { type: 'rename', name })
   }, [updateSessionById])
 
-  const handleSendMessage = useCallback(async (sessionId: string, message: string, attachments?: FileAttachment[], skillSlugs?: string[]) => {
+  const handleSendMessage = useCallback(async (sessionId: string, message: string, attachments?: FileAttachment[], skillSlugs?: string[], existingStoredAttachments?: StoredAttachment[]) => {
     try {
       // Step 1: Store attachments and get persistent metadata
       let storedAttachments: StoredAttachment[] | undefined
@@ -807,6 +807,32 @@ export default function App() {
             }
           })
         )
+      }
+
+      // Step 2.5: Merge existing stored attachments (from Edit/Retry)
+      // These are already stored on disk — re-read to create FileAttachment[] for Claude API
+      if (existingStoredAttachments?.length) {
+        const reReadResults = await Promise.allSettled(
+          existingStoredAttachments.map(s => window.electronAPI.readFileAttachment(s.storedPath))
+        )
+        const reReadAttachments = reReadResults
+          .map((result, i) => {
+            if (result.status === 'fulfilled' && result.value) {
+              return {
+                ...result.value,
+                storedPath: existingStoredAttachments[i].storedPath,
+                markdownPath: existingStoredAttachments[i].markdownPath,
+                base64: existingStoredAttachments[i].resizedBase64 ?? result.value.base64,
+              }
+            }
+            console.warn(`Failed to re-read stored attachment "${existingStoredAttachments[i].name}"`)
+            return null
+          })
+          .filter((a): a is NonNullable<typeof a> => a !== null)
+
+        // Merge with newly stored attachments (if any)
+        processedAttachments = [...(processedAttachments || []), ...reReadAttachments]
+        storedAttachments = [...(storedAttachments || []), ...existingStoredAttachments]
       }
 
       // Step 3: Check if ultrathink is enabled for this session

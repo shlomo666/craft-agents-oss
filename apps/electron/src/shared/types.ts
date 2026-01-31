@@ -464,10 +464,9 @@ export type SessionCommand =
   | { type: 'setPendingPlanExecution'; planPath: string }
   | { type: 'markCompactionComplete' }
   | { type: 'clearPendingPlanExecution' }
-  | { type: 'rewind'; messageId: string }
+  | { type: 'rewind'; messageId: string; skipPrefill?: boolean }
   | { type: 'delete'; messageId: string }
   | { type: 'branch'; messageId: string }
-  | { type: 'rephrase'; messageId: string }
   | { type: 'rephrase_text'; text: string; availableMentions?: string[] }
 
 /**

@@ -385,14 +385,11 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
       case 'clearPendingPlanExecution':
         return sessionManager.clearPendingPlanExecution(sessionId)
       case 'rewind':
-        return sessionManager.rewindToMessage(sessionId, command.messageId)
+        return sessionManager.rewindToMessage(sessionId, command.messageId, command.skipPrefill)
       case 'delete':
         return sessionManager.deleteFromMessage(sessionId, command.messageId)
       case 'branch':
         return sessionManager.branchFromMessage(sessionId, command.messageId)
-      case 'rephrase':
-        ipcLog.info(`IPC: rephrase received for session ${sessionId}, message ${command.messageId}`)
-        return sessionManager.rephraseMessage(sessionId, command.messageId)
       case 'rephrase_text':
         return sessionManager.rephraseText(sessionId, command.text, command.availableMentions)
       default: {

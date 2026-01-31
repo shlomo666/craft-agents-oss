@@ -521,9 +521,9 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
         <div className="flex-1 flex flex-col min-h-0">
           <ChatDisplay
             session={session}
-            onSendMessage={(message, attachments, skillSlugs) => {
+            onSendMessage={(message, attachments, skillSlugs, storedAttachments) => {
               if (session) {
-                onSendMessage(session.id, message, attachments, skillSlugs)
+                onSendMessage(session.id, message, attachments, skillSlugs, storedAttachments)
               }
             }}
             onOpenFile={handleOpenFile}
