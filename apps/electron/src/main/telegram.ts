@@ -53,6 +53,7 @@ interface StreamingState {
 export class TelegramService {
   private bot: Bot | null = null
   private sessionManager: SessionManager
+  private workspaceRootPath: string
   private chatSessions: Map<number, ChatSession> = new Map()  // chatId → session info
   private streamingStates: Map<string, StreamingState> = new Map()  // sessionId → streaming state
   private eventUnsubscribers: Map<string, () => void> = new Map()  // sessionId → unsubscribe fn
@@ -66,6 +67,7 @@ export class TelegramService {
 
   constructor(sessionManager: SessionManager, workspaceRootPath: string) {
     this.sessionManager = sessionManager
+    this.workspaceRootPath = workspaceRootPath
     this.mappingFilePath = join(workspaceRootPath, 'telegram-sessions.json')
     this.loadChatSessions()
   }
@@ -181,7 +183,17 @@ export class TelegramService {
   private async getOrCreateSession(chatId: number): Promise<ChatSession> {
     const existing = this.chatSessions.get(chatId)
     if (existing) {
-      return existing
+      // Verify the session still exists (user may have deleted it)
+      const session = await this.sessionManager.getSession(existing.sessionId)
+      if (session) {
+        return existing
+      }
+      // Session was deleted — remove stale mapping and create a fresh one
+      telegramLog.info(`Session ${existing.sessionId} for chat ${chatId} was deleted, creating new session`)
+      this.chatSessions.delete(chatId)
+      this.eventUnsubscribers.get(existing.sessionId)?.()
+      this.eventUnsubscribers.delete(existing.sessionId)
+      this.streamingStates.delete(existing.sessionId)
     }
 
     // Create a new Craft Agent session for this Telegram chat
@@ -208,8 +220,61 @@ export class TelegramService {
     // Label the session as Telegram
     this.sessionManager.setSessionLabels(session.id, ['telegram'])
 
+    // Write CLAUDE.md into session directory so the agent knows it's a Telegram bot
+    this.writeTelegramContext(session.id, chatId)
+
     telegramLog.info(`Created session ${session.id} for Telegram chat ${chatId}`)
     return chatSession
+  }
+
+  private writeTelegramContext(sessionId: string, chatId: number): void {
+    const sessionDir = join(this.workspaceRootPath, 'sessions', sessionId)
+    const claudeMdPath = join(sessionDir, 'CLAUDE.md')
+    const botUsername = this.status.botUsername ?? 'craft_agents_bot'
+
+    const content = `# Telegram Bot Session
+
+You are running as a **Telegram bot** (\`@${botUsername}\`).
+Messages you receive come from Telegram chat \`${chatId}\`.
+
+## Your Identity
+
+- You are Craft Agent running inside a Telegram bot integration
+- This session is persistent — the same Telegram chat always maps to this session
+- You have **full access** to all tools, sources, MCP servers, and bash in this workspace
+- Permission mode: \`allow-all\` (no confirmation needed for any action)
+
+## Cross-Session Awareness
+
+You can see what other agents/sessions are doing:
+
+- **List sessions:** \`ls ~/.craft-agent/workspaces/my-workspace/sessions/\`
+- **Read a session's conversation:** \`jq -r 'select(.type == "user" or .type == "assistant") | "\\(.type): \\(.content // "" | tostring[0:200])"' ~/.craft-agent/workspaces/my-workspace/sessions/{session-id}/session.jsonl\`
+- **Check session metadata (name, labels, last activity):** \`jq -r 'select(.name) | {name, labels, lastUsedAt, preview}' ~/.craft-agent/workspaces/my-workspace/sessions/{session-id}/session.jsonl | head -1\`
+- **Most recent sessions** are sorted by date prefix (e.g. \`260203-\` = Feb 3, 2026)
+
+## Capabilities
+
+You can do everything a normal Craft Agent session can:
+- Run bash commands, read/write files, search code
+- Access all configured sources (APIs, MCP servers)
+- Create and manage tasks, explore codebases
+- Interact with git, npm, docker, etc.
+
+## Communication Style
+
+- Keep responses concise — they appear in Telegram chat bubbles
+- Avoid very long code blocks when possible (use summaries)
+- Use plain text or minimal markdown (Telegram supports limited formatting)
+- If a response would be very long, summarize key points and offer to elaborate
+`
+
+    try {
+      writeFileSync(claudeMdPath, content, 'utf-8')
+      telegramLog.info(`Wrote Telegram CLAUDE.md for session ${sessionId}`)
+    } catch (err) {
+      telegramLog.warn(`Failed to write Telegram CLAUDE.md:`, err)
+    }
   }
 
   // ─── Event Bridging (Session Events → Telegram) ─────────────────────
