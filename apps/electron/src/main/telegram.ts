@@ -41,6 +41,11 @@ interface ChatSession {
   workspaceId: string
 }
 
+interface SessionResult {
+  session: ChatSession
+  isNew: boolean
+}
+
 interface StreamingState {
   chatId: number
   messageId: number | null  // Telegram message ID being edited
@@ -155,7 +160,7 @@ export class TelegramService {
     telegramLog.info(`Message from chat ${chatId}: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}`)
 
     try {
-      const session = await this.getOrCreateSession(chatId)
+      const { session, isNew } = await this.getOrCreateSession(chatId)
 
       // Set up event listener for this session if not already listening
       this.ensureEventListener(session.sessionId, chatId)
@@ -173,8 +178,14 @@ export class TelegramService {
       // Send "thinking" indicator
       await this.bot?.api.sendChatAction(chatId, 'typing')
 
+      // On first message of a new session, prepend identity context directly
+      // into the message (project context files are only listed as paths in
+      // the system prompt and not inlined, so the agent won't read them
+      // automatically on the first turn)
+      const messageToSend = isNew ? this.buildFirstMessage(text, chatId, senderName) : text
+
       // Send message through the full agent pipeline
-      await this.sessionManager.sendMessage(session.sessionId, text)
+      await this.sessionManager.sendMessage(session.sessionId, messageToSend)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       telegramLog.error(`Error handling message from chat ${chatId}:`, message)
@@ -182,13 +193,26 @@ export class TelegramService {
     }
   }
 
-  private async getOrCreateSession(chatId: number): Promise<ChatSession> {
+  private buildFirstMessage(text: string, chatId: number, senderName?: string): string {
+    const botUsername = this.status.botUsername ?? 'craft_agents_bot'
+    return `[TELEGRAM BOT CONTEXT — read this before responding]
+You are @${botUsername}, a Telegram bot running inside Craft Agent. This message comes from Telegram chat ${chatId}${senderName ? ` (${senderName})` : ''}.
+You have full access to all tools, sources, MCP servers, and bash. Permission mode: allow-all.
+You can see other sessions: ls ~/.craft-agent/workspaces/my-workspace/sessions/
+Read a session: jq -r 'select(.type == "user" or .type == "assistant") | .content' <path>/session.jsonl
+Keep responses concise for Telegram. Avoid long code blocks.
+[END CONTEXT]
+
+${text}`
+  }
+
+  private async getOrCreateSession(chatId: number): Promise<SessionResult> {
     const existing = this.chatSessions.get(chatId)
     if (existing) {
       // Verify the session still exists (user may have deleted it)
       const session = await this.sessionManager.getSession(existing.sessionId)
       if (session) {
-        return existing
+        return { session: existing, isNew: false }
       }
       // Session was deleted — remove stale mapping and create a fresh one
       telegramLog.info(`Session ${existing.sessionId} for chat ${chatId} was deleted, creating new session`)
@@ -227,7 +251,7 @@ export class TelegramService {
     this.sessionManager.setSessionLabels(session.id, ['telegram'])
 
     telegramLog.info(`Created session ${session.id} for Telegram chat ${chatId}`)
-    return chatSession
+    return { session: chatSession, isNew: true }
   }
 
   private ensureTelegramContext(chatId: number): void {
