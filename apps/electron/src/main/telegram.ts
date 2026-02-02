@@ -64,11 +64,13 @@ export class TelegramService {
     error: null,
   }
   private mappingFilePath: string
+  private telegramContextDir: string
 
   constructor(sessionManager: SessionManager, workspaceRootPath: string) {
     this.sessionManager = sessionManager
     this.workspaceRootPath = workspaceRootPath
     this.mappingFilePath = join(workspaceRootPath, 'telegram-sessions.json')
+    this.telegramContextDir = join(workspaceRootPath, 'telegram')
     this.loadChatSessions()
   }
 
@@ -196,7 +198,11 @@ export class TelegramService {
       this.streamingStates.delete(existing.sessionId)
     }
 
-    // Create a new Craft Agent session for this Telegram chat
+    // Write CLAUDE.md to shared telegram dir BEFORE session creation
+    // so the agent discovers it during initialization (timing matters!)
+    this.ensureTelegramContext(chatId)
+
+    // Create session with workingDirectory pointing to the telegram context dir
     const { getActiveWorkspace } = await import('@craft-agent/shared/config')
     const workspace = getActiveWorkspace()
     if (!workspace) {
@@ -205,7 +211,7 @@ export class TelegramService {
 
     const session = await this.sessionManager.createSession(workspace.id, {
       permissionMode: 'allow-all',
-      workingDirectory: 'user_default',
+      workingDirectory: this.telegramContextDir,
     })
 
     const chatSession: ChatSession = {
@@ -220,16 +226,16 @@ export class TelegramService {
     // Label the session as Telegram
     this.sessionManager.setSessionLabels(session.id, ['telegram'])
 
-    // Write CLAUDE.md into session directory so the agent knows it's a Telegram bot
-    this.writeTelegramContext(session.id, chatId)
-
     telegramLog.info(`Created session ${session.id} for Telegram chat ${chatId}`)
     return chatSession
   }
 
-  private writeTelegramContext(sessionId: string, chatId: number): void {
-    const sessionDir = join(this.workspaceRootPath, 'sessions', sessionId)
-    const claudeMdPath = join(sessionDir, 'CLAUDE.md')
+  private ensureTelegramContext(chatId: number): void {
+    if (!existsSync(this.telegramContextDir)) {
+      mkdirSync(this.telegramContextDir, { recursive: true })
+    }
+
+    const claudeMdPath = join(this.telegramContextDir, 'CLAUDE.md')
     const botUsername = this.status.botUsername ?? 'craft_agents_bot'
 
     const content = `# Telegram Bot Session
@@ -271,7 +277,7 @@ You can do everything a normal Craft Agent session can:
 
     try {
       writeFileSync(claudeMdPath, content, 'utf-8')
-      telegramLog.info(`Wrote Telegram CLAUDE.md for session ${sessionId}`)
+      telegramLog.info(`Wrote Telegram CLAUDE.md to ${this.telegramContextDir}`)
     } catch (err) {
       telegramLog.warn(`Failed to write Telegram CLAUDE.md:`, err)
     }
