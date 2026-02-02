@@ -493,9 +493,32 @@ export class SessionManager {
    * marked as unread when assistant completes - if user is viewing it, don't mark unread.
    */
   private activeViewingSession: Map<string, string> = new Map()
+  // Main-process event listeners (e.g., Telegram integration)
+  // Keyed by sessionId, each entry is a set of listeners
+  private sessionEventListeners: Map<string, Set<(event: SessionEvent) => void>> = new Map()
 
   setWindowManager(wm: WindowManager): void {
     this.windowManager = wm
+  }
+
+  /**
+   * Register a main-process listener for session events.
+   * Used by TelegramService to bridge agent responses to Telegram.
+   * Returns an unsubscribe function.
+   */
+  onSessionEvent(sessionId: string, listener: (event: SessionEvent) => void): () => void {
+    let listeners = this.sessionEventListeners.get(sessionId)
+    if (!listeners) {
+      listeners = new Set()
+      this.sessionEventListeners.set(sessionId, listeners)
+    }
+    listeners.add(listener)
+    return () => {
+      listeners!.delete(listener)
+      if (listeners!.size === 0) {
+        this.sessionEventListeners.delete(sessionId)
+      }
+    }
   }
 
   /**
@@ -3920,8 +3943,18 @@ To view this task's output:
   }
 
   private sendEvent(event: SessionEvent, workspaceId?: string): void {
+    // Notify main-process listeners (e.g., Telegram integration)
+    // This runs even when no windows are open, ensuring headless consumers receive events.
+    if ('sessionId' in event && event.sessionId) {
+      const listeners = this.sessionEventListeners.get(event.sessionId)
+      if (listeners) {
+        for (const listener of listeners) {
+          try { listener(event) } catch { /* ignore listener errors */ }
+        }
+      }
+    }
+
     if (!this.windowManager) {
-      sessionLog.warn('Cannot send event - no window manager')
       return
     }
 

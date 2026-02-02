@@ -716,6 +716,13 @@ export const IPC_CHANNELS = {
   MENU_COPY: 'menu:copy',
   MENU_PASTE: 'menu:paste',
   MENU_SELECT_ALL: 'menu:selectAll',
+
+  // Telegram integration
+  TELEGRAM_GET_STATUS: 'telegram:getStatus',
+  TELEGRAM_SET_TOKEN: 'telegram:setToken',
+  TELEGRAM_START: 'telegram:start',
+  TELEGRAM_STOP: 'telegram:stop',
+  TELEGRAM_STATUS_CHANGED: 'telegram:statusChanged',  // main → renderer broadcast
 } as const
 
 // Re-import types for ElectronAPI
@@ -981,6 +988,23 @@ export interface ElectronAPI {
   menuCopy(): Promise<void>
   menuPaste(): Promise<void>
   menuSelectAll(): Promise<void>
+
+  // Telegram integration
+  telegramGetStatus(): Promise<TelegramStatusInfo>
+  telegramSetToken(token: string): Promise<TelegramStatusInfo>
+  telegramStart(): Promise<TelegramStatusInfo>
+  telegramStop(): Promise<void>
+  onTelegramStatusChanged(callback: (status: TelegramStatusInfo) => void): () => void
+}
+
+/**
+ * Telegram bot status info (shared between main and renderer)
+ */
+export interface TelegramStatusInfo {
+  running: boolean
+  botUsername: string | null
+  hasToken: boolean
+  error: string | null
 }
 
 /**

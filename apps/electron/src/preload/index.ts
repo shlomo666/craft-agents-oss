@@ -432,6 +432,21 @@ const api: ElectronAPI = {
   menuCopy: () => ipcRenderer.invoke(IPC_CHANNELS.MENU_COPY),
   menuPaste: () => ipcRenderer.invoke(IPC_CHANNELS.MENU_PASTE),
   menuSelectAll: () => ipcRenderer.invoke(IPC_CHANNELS.MENU_SELECT_ALL),
+
+  // Telegram integration
+  telegramGetStatus: () => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_GET_STATUS),
+  telegramSetToken: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_SET_TOKEN, token),
+  telegramStart: () => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_START),
+  telegramStop: () => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_STOP),
+  onTelegramStatusChanged: (callback: (status: import('../shared/types').TelegramStatusInfo) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: import('../shared/types').TelegramStatusInfo) => {
+      callback(status)
+    }
+    ipcRenderer.on(IPC_CHANNELS.TELEGRAM_STATUS_CHANGED, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.TELEGRAM_STATUS_CHANGED, handler)
+    }
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

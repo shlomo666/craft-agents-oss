@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/styled-context-menu"
 import { ContextMenuProvider } from "@/components/ui/menu-context"
 import { SidebarMenu } from "./SidebarMenu"
+import { TelegramButton } from "./TelegramButton"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { FadingText } from "@/components/ui/fading-text"
 import {
@@ -1881,8 +1882,9 @@ function AppShellContent({
             <div className="flex h-full flex-col pt-[50px] select-none">
               {/* Sidebar Top Section */}
               <div className="flex-1 flex flex-col min-h-0">
-                {/* New Chat Button - Gmail-style, with context menu for "Open in New Window" */}
-                <div className="px-2 pt-1 pb-2 shrink-0">
+                {/* Telegram Bot + New Chat Buttons */}
+                <div className="px-2 pt-1 pb-2 shrink-0 space-y-0.5">
+                  <TelegramButton />
                   <ContextMenu modal={true}>
                     <ContextMenuTrigger asChild>
                       <Button

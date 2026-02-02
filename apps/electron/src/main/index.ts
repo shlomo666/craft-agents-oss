@@ -81,6 +81,8 @@ import log, { isDebugMode, mainLog, getLogFilePath } from './logger'
 import { setPerfEnabled, enableDebug } from '@craft-agent/shared/utils'
 import { initNotificationService, clearBadgeCount, initBadgeIcon, initInstanceBadge } from './notifications'
 import { checkForUpdatesOnLaunch, setWindowManager as setAutoUpdateWindowManager, isUpdating } from './auto-update'
+import { TelegramService } from './telegram'
+import { registerTelegramHandlers, autoStartTelegram } from './telegram-ipc'
 
 // Initialize electron-log for renderer process support
 log.initialize()
@@ -98,6 +100,7 @@ const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'craftagents'
 
 let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
+let telegramService: TelegramService | null = null
 
 // Store pending deep link if app not ready yet (cold start)
 let pendingDeepLink: string | null = null
@@ -267,11 +270,26 @@ app.whenReady().then(async () => {
     // Register IPC handlers (must happen before window creation)
     registerIpcHandlers(sessionManager, windowManager)
 
+    // Initialize Telegram bot service
+    const { getActiveWorkspace } = await import('@craft-agent/shared/config')
+    const activeWorkspace = getActiveWorkspace()
+    if (activeWorkspace) {
+      telegramService = new TelegramService(sessionManager, activeWorkspace.rootPath)
+      registerTelegramHandlers(telegramService, windowManager)
+    }
+
     // Create initial windows (restores from saved state or opens first workspace)
     await createInitialWindows()
 
     // Initialize auth (must happen after window creation for error reporting)
     await sessionManager.initialize()
+
+    // Auto-start Telegram bot if token is configured
+    if (telegramService) {
+      autoStartTelegram(telegramService, windowManager).catch(err => {
+        mainLog.error('Telegram auto-start failed:', err)
+      })
+    }
 
     // Set Sentry context tags for error grouping (no PII — just config classification).
     // Runs after init so config and auth state are available.
@@ -364,6 +382,16 @@ app.on('before-quit', async (event) => {
       lastFocusedWorkspaceId,
     })
     mainLog.info('Saved window state:', windows.length, 'windows')
+  }
+
+  // Stop Telegram bot before quitting
+  if (telegramService) {
+    try {
+      await telegramService.stop()
+      mainLog.info('Telegram bot stopped')
+    } catch (error) {
+      mainLog.error('Failed to stop Telegram bot:', error)
+    }
   }
 
   // Flush all pending session writes before quitting
