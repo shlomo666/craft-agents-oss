@@ -52,6 +52,7 @@ import { type ThinkingLevel, DEFAULT_THINKING_LEVEL } from '@craft-agent/shared/
 import { evaluateAutoLabels } from '@craft-agent/shared/labels/auto'
 import { listLabels } from '@craft-agent/shared/labels/storage'
 import { extractLabelId } from '@craft-agent/shared/labels'
+import { createSessionControlMcpServer } from './session-control-mcp'
 
 /**
  * Sanitize message content for use as session title.
@@ -1471,6 +1472,18 @@ export class SessionManager {
     if (!managed.agent) {
       const end = perf.start('agent.create', { sessionId: managed.id })
       const config = loadStoredConfig()
+
+      // Check if this session should have session control tools (Telegram orchestrator)
+      // Sessions with 'telegram' label get access to session control MCP server
+      const isTelegramSession = managed.labels?.includes('telegram') ?? false
+      const additionalMcpServers = isTelegramSession
+        ? { 'session-control': createSessionControlMcpServer(this, managed.id) }
+        : undefined
+
+      if (isTelegramSession) {
+        sessionLog.info(`Enabling session-control MCP for Telegram session ${managed.id}`)
+      }
+
       managed.agent = new CraftAgent({
         workspace: managed.workspace,
         // Session model takes priority, fallback to global config, then resolve with customModel override
@@ -1526,6 +1539,8 @@ export class SessionManager {
           enabled: true,
           logFilePath: getLogFilePath(),
         } : undefined,
+        // Session control tools for Telegram orchestrator
+        additionalMcpServers,
       })
       sessionLog.info(`Created agent for session ${managed.id}${managed.sdkSessionId ? ' (resuming)' : ''}`)
 

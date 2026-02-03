@@ -121,6 +121,12 @@ export interface CraftAgentConfig {
     enabled: boolean;          // Whether debug mode is active
     logFilePath?: string;      // Path to the log file for querying
   };
+  /**
+   * Additional MCP servers to include in this agent's chat sessions.
+   * Used by session control, Telegram orchestrator, etc.
+   * Map of server name to SDK MCP server instance.
+   */
+  additionalMcpServers?: Record<string, ReturnType<typeof import('@anthropic-ai/claude-agent-sdk').createSdkMcpServer>>;
 }
 
 // Permission request tracking
@@ -839,6 +845,8 @@ export class CraftAgent {
         // Note: Craft MCP server is now added via sources system
         ...sourceMcpResult.servers,
         ...this.sourceApiServers,
+        // Add additional MCP servers (session control, etc.) - passed from main process
+        ...this.config.additionalMcpServers,
       };
       
       // Configure SDK options
@@ -1013,7 +1021,8 @@ export class CraftAgent {
                   // - preferences: user preferences storage
                   // - session: session-scoped tools (SubmitPlan, source_test, etc.)
                   // - craft-agents-docs: always-available documentation search
-                  const builtInMcpServers = new Set(['preferences', 'session', 'craft-agents-docs']);
+                  // - session-control: session orchestration tools (for Telegram bot, etc.)
+                  const builtInMcpServers = new Set(['preferences', 'session', 'craft-agents-docs', 'session-control']);
 
                   // Check if this is a source server (not built-in)
                   if (!builtInMcpServers.has(serverName)) {
