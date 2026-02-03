@@ -217,6 +217,11 @@ You have these tools available:
 - \`stop_session\` - Cancel processing
 - \`delete_session\` - Delete a session
 - \`rename_session\` / \`set_session_labels\` - Organize sessions
+- \`subscribe_session_events\` - Get notified when sessions become idle, run 10+ min, error, or submit plans
+- \`unsubscribe_session_events\` - Stop receiving notifications
+- \`list_subscriptions\` - See active subscriptions
+- \`set_permission_mode\` - Change session mode (safe/ask/allow-all)
+- \`approve_plan\` - Approve a plan from an Explore-mode session
 
 ## Quick Patterns
 - **Quick task:** create_session → send_message(waitForResponse:true) → return result
@@ -318,6 +323,11 @@ You have access to the \`session-control\` MCP server with these tools:
 | \`delete_session\` | Delete a session and all its data |
 | \`rename_session\` | Set a custom name for a session |
 | \`set_session_labels\` | Add/remove labels from a session |
+| \`subscribe_session_events\` | Get real-time notifications (idle, long_running, error, plan_submitted) |
+| \`unsubscribe_session_events\` | Remove event subscriptions |
+| \`list_subscriptions\` | List active event subscriptions |
+| \`set_permission_mode\` | Change session permission mode (safe/ask/allow-all) |
+| \`approve_plan\` | Approve and execute a plan from an Explore-mode session |
 
 ## Orchestration Patterns
 
