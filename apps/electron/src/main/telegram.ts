@@ -450,15 +450,16 @@ You have access to the \`session-control\` MCP server with these tools:
     if (!state || !state.buffer) return
 
     const text = truncateForTelegram(state.buffer)
+    const htmlText = markdownToTelegramHtml(text)
 
     try {
       if (!state.messageId) {
         // First message — send new
-        const sent = await this.bot?.api.sendMessage(chatId, text)
+        const sent = await this.bot?.api.sendMessage(chatId, htmlText, { parse_mode: 'HTML' })
         if (sent) state.messageId = sent.message_id
       } else if (state.editCount < MAX_EDITS_PER_MESSAGE) {
         // Edit existing message with accumulated text
-        await this.bot?.api.editMessageText(chatId, state.messageId, text)
+        await this.bot?.api.editMessageText(chatId, state.messageId, htmlText, { parse_mode: 'HTML' })
       }
       state.editCount++
     } catch (err: unknown) {
@@ -483,13 +484,14 @@ You have access to the \`session-control\` MCP server with these tools:
     // Send the final complete text
     const messages = splitMessage(text)
     for (const msg of messages) {
+      const htmlMsg = markdownToTelegramHtml(msg)
       try {
         if (state.messageId && messages.indexOf(msg) === 0) {
           // Edit the streaming message with final text
-          await this.bot?.api.editMessageText(chatId, state.messageId, msg)
+          await this.bot?.api.editMessageText(chatId, state.messageId, htmlMsg, { parse_mode: 'HTML' })
         } else {
           // Send additional messages for overflow
-          await this.bot?.api.sendMessage(chatId, msg)
+          await this.bot?.api.sendMessage(chatId, htmlMsg, { parse_mode: 'HTML' })
         }
       } catch {
         // If edit fails, send as new message
@@ -525,9 +527,15 @@ You have access to the \`session-control\` MCP server with these tools:
     const messages = splitMessage(text)
     for (const msg of messages) {
       try {
-        await this.bot.api.sendMessage(chatId, msg)
+        await this.bot.api.sendMessage(chatId, markdownToTelegramHtml(msg), { parse_mode: 'HTML' })
       } catch (err: unknown) {
         telegramLog.error(`Failed to send message to chat ${chatId}:`, err)
+        // Fallback: try without formatting if HTML parsing fails
+        try {
+          await this.bot.api.sendMessage(chatId, msg)
+        } catch {
+          // Give up
+        }
       }
     }
   }
@@ -563,6 +571,43 @@ You have access to the \`session-control\` MCP server with these tools:
 }
 
 // ─── Formatting Utilities ───────────────────────────────────────────────
+
+/**
+ * Convert markdown to Telegram-compatible HTML.
+ * Handles: bold, italic, code, pre, links, strikethrough, underline
+ */
+function markdownToTelegramHtml(text: string): string {
+  let result = text
+
+  // Escape HTML entities first (except for what we'll convert)
+  result = result
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  // Code blocks (```language\ncode```) → <pre><code>
+  result = result.replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre>$1</pre>')
+
+  // Inline code (`code`) → <code>
+  result = result.replace(/`([^`]+)`/g, '<code>$1</code>')
+
+  // Bold (**text** or __text__) → <b>
+  result = result.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+  result = result.replace(/__([^_]+)__/g, '<b>$1</b>')
+
+  // Italic (*text* or _text_) → <i>
+  // Be careful not to match already-converted bold or code
+  result = result.replace(/(?<![*<])\*([^*]+)\*(?![*>])/g, '<i>$1</i>')
+  result = result.replace(/(?<![_<])_([^_]+)_(?![_>])/g, '<i>$1</i>')
+
+  // Strikethrough (~~text~~) → <s>
+  result = result.replace(/~~([^~]+)~~/g, '<s>$1</s>')
+
+  // Links [text](url) → <a href="url">text</a>
+  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+
+  return result
+}
 
 function truncateForTelegram(text: string): string {
   if (text.length <= TELEGRAM_MESSAGE_LIMIT) return text
