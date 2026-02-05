@@ -579,13 +579,27 @@ You have access to the \`session-control\` MCP server with these tools:
 function markdownToTelegramHtml(text: string): string {
   let result = text
 
-  // Escape HTML entities first (except for what we'll convert)
+  // Store links first to protect URLs from escaping
+  const links: Array<{ placeholder: string; html: string }> = []
+  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, linkText, url) => {
+    const placeholder = `__LINK_${links.length}__`
+    const escapedText = linkText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    links.push({ placeholder, html: `<a href="${url}">${escapedText}</a>` })
+    return placeholder
+  })
+
+  // Escape HTML entities
   result = result
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 
-  // Code blocks (```language\ncode```) → <pre><code>
+  // Restore links
+  for (const { placeholder, html } of links) {
+    result = result.replace(placeholder, html)
+  }
+
+  // Code blocks (```language\ncode```) → <pre>
   result = result.replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre>$1</pre>')
 
   // Inline code (`code`) → <code>
@@ -596,15 +610,11 @@ function markdownToTelegramHtml(text: string): string {
   result = result.replace(/__([^_]+)__/g, '<b>$1</b>')
 
   // Italic (*text* or _text_) → <i>
-  // Be careful not to match already-converted bold or code
   result = result.replace(/(?<![*<])\*([^*]+)\*(?![*>])/g, '<i>$1</i>')
   result = result.replace(/(?<![_<])_([^_]+)_(?![_>])/g, '<i>$1</i>')
 
   // Strikethrough (~~text~~) → <s>
   result = result.replace(/~~([^~]+)~~/g, '<s>$1</s>')
-
-  // Links [text](url) → <a href="url">text</a>
-  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
 
   return result
 }
