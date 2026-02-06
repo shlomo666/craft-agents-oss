@@ -74,6 +74,15 @@ const shortTimeLocale: Pick<Locale, 'formatDistance'> = {
   },
 }
 
+/** If text starts with an emoji, return just the emoji. Otherwise return full text. */
+function getDisplayLabel(name: string): string {
+  const emojiMatch = name.match(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u)
+  if (emojiMatch) {
+    return emojiMatch[0]
+  }
+  return name
+}
+
 /**
  * Format a date for the date header
  * Returns "Today", "Yesterday", or formatted date like "Dec 19"
@@ -441,7 +450,7 @@ function SessionItem({
                           color: 'rgba(var(--foreground-rgb), 0.8)',
                         }}
                       >
-                        {label.name}
+                        {getDisplayLabel(label.name)}
                         {/* Interpunct + value for typed labels, or placeholder icon if typed but no value set */}
                         {displayValue ? (
                           <>
