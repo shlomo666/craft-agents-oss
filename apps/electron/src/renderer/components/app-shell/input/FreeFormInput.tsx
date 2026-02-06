@@ -106,8 +106,8 @@ export interface FreeFormInputProps {
   disabled?: boolean
   /** Whether the session is currently processing */
   isProcessing?: boolean
-  /** Callback when message is submitted (skillSlugs from @mentions) */
-  onSubmit: (message: string, attachments?: FileAttachment[], skillSlugs?: string[]) => void
+  /** Callback when message is submitted (skillSlugs from @mentions, sourceSlugs for atomic delivery) */
+  onSubmit: (message: string, attachments?: FileAttachment[], skillSlugs?: string[], sourceSlugs?: string[]) => void
   /** Callback to stop processing. Pass silent=true to skip "Response interrupted" message */
   onStop?: (silent?: boolean) => void
   /** External ref for the input */
@@ -374,90 +374,158 @@ export function FreeFormInput({
   // This disables safe mode AND submits the message in one action
   // Only process events for this session (sessionId must match)
   React.useEffect(() => {
+    console.log('[FreeFormInput] Attaching craft:approve-plan listener', { sessionId })
+
     const handleApprovePlan = (e: CustomEvent<{ text?: string; sessionId?: string }>) => {
+      console.log('[FreeFormInput] Received craft:approve-plan event', {
+        eventSessionId: e.detail?.sessionId,
+        listenerSessionId: sessionId,
+        match: e.detail?.sessionId === sessionId,
+        text: e.detail?.text
+      })
+
       // Only handle if this event is for our session
       if (e.detail?.sessionId && e.detail.sessionId !== sessionId) {
+        console.log('[FreeFormInput] SKIPPING - sessionId mismatch', {
+          eventSessionId: e.detail.sessionId,
+          listenerSessionId: sessionId
+        })
         return
       }
       const text = e.detail?.text
       if (!text) {
+        console.log('[FreeFormInput] SKIPPING - no text provided')
         toast.error('No details provided')
         return
       }
+
+      console.log('[FreeFormInput] Processing approval', {
+        permissionMode,
+        willSwitchMode: permissionMode === 'safe'
+      })
+
       // Switch to allow-all (Auto) mode if in Explore mode (allow execution without prompts)
       // Only switch if currently in safe mode - if user is in 'ask' mode, respect their choice
       if (permissionMode === 'safe') {
+        console.log('[FreeFormInput] Switching permission mode from safe to allow-all')
         onPermissionModeChange?.('allow-all')
       }
+
       // Submit the message
+      console.log('[FreeFormInput] Calling onSubmit with:', text)
       onSubmit(text, undefined)
+      console.log('[FreeFormInput] onSubmit called successfully')
     }
 
     window.addEventListener('craft:approve-plan', handleApprovePlan as EventListener)
-    return () => window.removeEventListener('craft:approve-plan', handleApprovePlan as EventListener)
+    return () => {
+      console.log('[FreeFormInput] Detaching craft:approve-plan listener', { sessionId })
+      window.removeEventListener('craft:approve-plan', handleApprovePlan as EventListener)
+    }
   }, [sessionId, permissionMode, onPermissionModeChange, onSubmit])
 
   // Listen for craft:approve-plan-with-compact events (Accept & Compact option)
   // This compacts the conversation first, then executes the plan.
   // The pending state is persisted to survive page reloads (CMD+R).
   React.useEffect(() => {
+    console.log('[FreeFormInput] Attaching craft:approve-plan-with-compact listener', { sessionId })
+
     const handleApprovePlanWithCompact = async (e: CustomEvent<{ sessionId?: string; planPath?: string }>) => {
+      console.log('[FreeFormInput] Received craft:approve-plan-with-compact event', {
+        eventSessionId: e.detail?.sessionId,
+        listenerSessionId: sessionId,
+        match: e.detail?.sessionId === sessionId,
+        planPath: e.detail?.planPath
+      })
+
       // Only handle if this event is for our session
       if (e.detail?.sessionId && e.detail.sessionId !== sessionId) {
+        console.log('[FreeFormInput] SKIPPING compact - sessionId mismatch', {
+          eventSessionId: e.detail.sessionId,
+          listenerSessionId: sessionId
+        })
         return
       }
 
       const planPath = e.detail?.planPath
 
+      console.log('[FreeFormInput] Processing compact approval', {
+        permissionMode,
+        willSwitchMode: permissionMode === 'safe',
+        planPath
+      })
+
       // Switch to allow-all (Auto) mode if in Explore mode
       if (permissionMode === 'safe') {
+        console.log('[FreeFormInput] Switching permission mode from safe to allow-all')
         onPermissionModeChange?.('allow-all')
       }
 
       // Persist the pending plan execution state BEFORE sending /compact.
       // This allows reload recovery if CMD+R happens during compaction.
       if (planPath && sessionId) {
+        console.log('[FreeFormInput] Persisting pending plan execution state')
         await window.electronAPI.sessionCommand(sessionId, {
           type: 'setPendingPlanExecution',
           planPath,
         })
+        console.log('[FreeFormInput] Pending state persisted')
       }
 
       // Send /compact to trigger compaction
+      console.log('[FreeFormInput] Sending /compact command')
       onSubmit('/compact', undefined)
+      console.log('[FreeFormInput] /compact command sent, setting up compaction-complete listener')
 
       // Set up a one-time listener for compaction complete.
       // This handles the normal case (no reload during compaction).
       const handleCompactionComplete = async (compactEvent: CustomEvent<{ sessionId?: string }>) => {
+        console.log('[FreeFormInput] Received craft:compaction-complete event', {
+          eventSessionId: compactEvent.detail?.sessionId,
+          listenerSessionId: sessionId,
+          match: compactEvent.detail?.sessionId === sessionId
+        })
+
         // Only handle if this is for our session
         if (compactEvent.detail?.sessionId !== sessionId) {
+          console.log('[FreeFormInput] SKIPPING compaction-complete - sessionId mismatch')
           return
         }
 
         // Remove the listener (one-time use)
+        console.log('[FreeFormInput] Removing compaction-complete listener (one-time)')
         window.removeEventListener('craft:compaction-complete', handleCompactionComplete as unknown as EventListener)
 
         // Send the execution message with explicit plan path
         // After compaction, Claude doesn't automatically remember the plan file
         if (planPath) {
+          console.log('[FreeFormInput] Sending plan execution message with path:', planPath)
           onSubmit(`Read the plan at ${planPath} and execute it.`, undefined)
         } else {
+          console.log('[FreeFormInput] Sending plan execution message (no path)')
           onSubmit('Plan approved, please execute.', undefined)
         }
+        console.log('[FreeFormInput] Execution message sent')
 
         // Clear the pending state since we just sent the execution message
         if (sessionId) {
+          console.log('[FreeFormInput] Clearing pending plan execution state')
           await window.electronAPI.sessionCommand(sessionId, {
             type: 'clearPendingPlanExecution',
           })
+          console.log('[FreeFormInput] Pending state cleared')
         }
       }
 
+      console.log('[FreeFormInput] Adding one-time compaction-complete listener')
       window.addEventListener('craft:compaction-complete', handleCompactionComplete as unknown as EventListener)
     }
 
     window.addEventListener('craft:approve-plan-with-compact', handleApprovePlanWithCompact as unknown as EventListener)
-    return () => window.removeEventListener('craft:approve-plan-with-compact', handleApprovePlanWithCompact as unknown as EventListener)
+    return () => {
+      console.log('[FreeFormInput] Detaching craft:approve-plan-with-compact listener', { sessionId })
+      window.removeEventListener('craft:approve-plan-with-compact', handleApprovePlanWithCompact as unknown as EventListener)
+    }
   }, [sessionId, permissionMode, onPermissionModeChange, onSubmit])
 
   // Reload recovery: Check for pending plan execution on mount.
@@ -897,10 +965,17 @@ export function FreeFormInput({
       }
     }
 
+    // Pass current source slugs atomically with the message
+    // This ensures sources are applied before the message is processed
+    const currentSourceSlugs = mentions.sources.length > 0
+      ? [...new Set([...optimisticSourceSlugs, ...mentions.sources])]
+      : optimisticSourceSlugs
+
     onSubmit(
       input.trim(),
       attachments.length > 0 ? attachments : undefined,
-      mentions.skills.length > 0 ? mentions.skills : undefined
+      mentions.skills.length > 0 ? mentions.skills : undefined,
+      currentSourceSlugs.length > 0 ? currentSourceSlugs : undefined
     )
     setInput('')
     setAttachments([])
@@ -1513,7 +1588,7 @@ export function FreeFormInput({
                 MODELS.map((model) => {
                   const isSelected = currentModel === model.id
                   const descriptions: Record<string, string> = {
-                    'claude-opus-4-5-20251101': 'Most capable for complex work',
+                    'claude-opus-4-6': 'Most capable for complex work',
                     'claude-sonnet-4-5-20250929': 'Best for everyday tasks',
                     'claude-haiku-4-5-20251001': 'Fastest for quick answers',
                   }
