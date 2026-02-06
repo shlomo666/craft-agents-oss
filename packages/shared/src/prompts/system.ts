@@ -7,6 +7,7 @@ import { PERMISSION_MODE_CONFIG } from '../agent/mode-types.ts';
 import { APP_VERSION } from '../version/index.ts';
 import { globSync } from 'glob';
 import os from 'os';
+import { getSessionMemoryPath } from '../sessions/storage.ts';
 
 /** Maximum size of CLAUDE.md file to include (10KB) */
 const MAX_CONTEXT_FILE_SIZE = 10 * 1024;
@@ -291,6 +292,77 @@ export interface SystemPromptOptions {
   workspaceRootPath?: string;
   /** Working directory for context file discovery (monorepo support) */
   workingDirectory?: string;
+  /** Session ID for session memory injection */
+  sessionId?: string;
+}
+
+/**
+ * Read the session memory file and format it for injection into the system prompt.
+ * Returns empty string if the memory file doesn't exist or is empty.
+ */
+function getSessionMemoryPrompt(workspaceRootPath: string, sessionId: string): string {
+  const memoryPath = getSessionMemoryPath(workspaceRootPath, sessionId);
+
+  if (!existsSync(memoryPath)) {
+    return '';
+  }
+
+  try {
+    let content = readFileSync(memoryPath, 'utf-8');
+
+    // Skip if memory file is just the template (empty sections)
+    const isEmptyTemplate = !content.includes('\n## Current Task\n\n\n## Progress')
+      ? false
+      : content.replace(/^# Session Memory[\s\S]*?## Current Task\n+## Progress\n+## Important Context\n+## Notes\n*$/, '').trim() === '';
+
+    if (isEmptyTemplate || content.trim() === '') {
+      return '';
+    }
+
+    // Truncate if too large (same limit as user context)
+    if (content.length > MAX_CONTEXT_FILE_SIZE) {
+      debug(`[getSessionMemoryPrompt] ${memoryPath} exceeds max size, truncating`);
+      content = content.slice(0, MAX_CONTEXT_FILE_SIZE) + '\n\n... (truncated)';
+    }
+
+    debug(`[getSessionMemoryPrompt] Found ${memoryPath} (${content.length} chars)`);
+    return `\n<session_memory path="${memoryPath}">
+${content}
+</session_memory>`;
+  } catch (error) {
+    debug(`[getSessionMemoryPrompt] Error reading ${memoryPath}:`, error);
+    return '';
+  }
+}
+
+/**
+ * Read the workspace-level instructions file at {workspaceRootPath}/INSTRUCTIONS.md.
+ * This provides workspace-scoped context that applies to all sessions in the workspace,
+ * without polluting the global ~/.claude/CLAUDE.md.
+ * Returns the formatted prompt section if found, empty string otherwise.
+ */
+function getWorkspaceInstructionsPrompt(workspaceRootPath: string): string {
+  const filename = findFileCaseInsensitive(workspaceRootPath, 'instructions.md');
+  if (!filename) return '';
+
+  const fullPath = join(workspaceRootPath, filename);
+  try {
+    let content = readFileSync(fullPath, 'utf-8');
+    if (content.trim() === '') return '';
+
+    if (content.length > MAX_CONTEXT_FILE_SIZE) {
+      debug(`[getWorkspaceInstructionsPrompt] ${fullPath} exceeds max size, truncating`);
+      content = content.slice(0, MAX_CONTEXT_FILE_SIZE) + '\n\n... (truncated)';
+    }
+
+    debug(`[getWorkspaceInstructionsPrompt] Found ${fullPath} (${content.length} chars)`);
+    return `\n<workspace_instructions path="${fullPath}">
+${content}
+</workspace_instructions>`;
+  } catch (error) {
+    debug(`[getWorkspaceInstructionsPrompt] Error reading ${fullPath}:`, error);
+    return '';
+  }
 }
 
 /**
@@ -303,20 +375,31 @@ export function getSystemPrompt(
   pinnedPreferencesPrompt?: string,
   debugMode?: DebugModeConfig,
   workspaceRootPath?: string,
-  workingDirectory?: string
+  workingDirectory?: string,
+  sessionId?: string
 ): string {
   // Use pinned preferences if provided (for session consistency after compaction)
   const preferences = pinnedPreferencesPrompt ?? formatPreferencesForPrompt();
   const debugContext = debugMode?.enabled ? formatDebugModeContext(debugMode.logFilePath) : '';
 
+  // Get workspace-level instructions (workspace-scoped, not global)
+  const workspaceInstructions = workspaceRootPath
+    ? getWorkspaceInstructionsPrompt(workspaceRootPath)
+    : '';
+
   // Get project context files for monorepo support (lives in system prompt for persistence across compaction)
   const projectContextFiles = getProjectContextFilesPrompt(workingDirectory);
+
+  // Get session memory for cross-compaction persistence
+  const sessionMemory = workspaceRootPath && sessionId
+    ? getSessionMemoryPrompt(workspaceRootPath, sessionId)
+    : '';
 
   // Note: Date/time context is now added to user messages instead of system prompt
   // to enable prompt caching. The system prompt stays static and cacheable.
   // Safe Mode context is also in user messages for the same reason.
   const basePrompt = getCraftAssistantPrompt(workspaceRootPath);
-  const fullPrompt = `${basePrompt}${preferences}${debugContext}${projectContextFiles}`;
+  const fullPrompt = `${basePrompt}${preferences}${debugContext}${workspaceInstructions}${projectContextFiles}${sessionMemory}`;
 
   debug('[getSystemPrompt] full prompt length:', fullPrompt.length);
 
@@ -431,6 +514,8 @@ Sources are external data connections. Each source has:
 
 When \`<user_context_file>\` appears in the system prompt, it contains the user-level context from \`~/.claude/CLAUDE.md\` — follow its instructions as you would any system-level guidance.
 
+When \`<workspace_instructions>\` appears in the system prompt, it contains workspace-level instructions from \`INSTRUCTIONS.md\` in the workspace root. These apply to all sessions in this workspace. Follow them as you would system-level guidance.
+
 When \`<project_context_files>\` appears in the system prompt, it lists all discovered context files (CLAUDE.md, AGENTS.md) in the working directory and its subdirectories. This supports monorepos where each package may have its own context file.
 
 Read relevant project context files using the Read tool - they contain architecture info, conventions, and project-specific guidance. For monorepos, read the root context file first, then package-specific files as needed based on what you're working on.
@@ -483,7 +568,7 @@ Co-Authored-By: Craft Agent <agents-noreply@craft.do>
 | **${PERMISSION_MODE_CONFIG['ask'].displayName}** | Prompts before edits. Read operations run freely. |
 | **${PERMISSION_MODE_CONFIG['allow-all'].displayName}** | Full autonomous execution. No prompts. |
 
-Current mode is in \`<session_state>\`. \`plansFolderPath\` shows where plans are stored.
+Current mode is in \`<session_state>\`. \`plansFolderPath\` shows where plans are stored. \`memoryFilePath\` shows where session memory is stored.
 
 **${PERMISSION_MODE_CONFIG['safe'].displayName} mode:** Read, search, and explore freely. Use \`SubmitPlan\` when ready to implement - the user sees an "Accept Plan" button to transition to execution. 
 Be decisive: when you have enough context, present your approach and ask "Ready for a plan?" or write it directly. This will help the user move forward.
@@ -493,6 +578,23 @@ When presenting a plan via SubmitPlan the system will interrupt your current run
 Never try to execute a plan without submitting it first - it will fail, especially if user is in ${PERMISSION_MODE_CONFIG['safe'].displayName} mode.
 
 **Full reference on what commands are enablled:** \`${DOC_REFS.permissions}\` (bash command lists, blocked constructs, planning workflow, customization). Read if unsure, or user has questions about permissions.
+
+## Session Memory
+
+You have a session memory file at \`memoryFilePath\` (shown in \`<session_state>\`) that persists across context compaction.
+
+**Memory Protocol:**
+1. **Check memory at task start** - Read the memory file before beginning complex tasks
+2. **Write progress during work** - Update memory with important progress, decisions, and context
+3. **Assume interruption** - Your context may compact at any time; anything not in memory may be lost
+
+**When to use memory:**
+- Task progress that would be lost if context compacts
+- Important decisions and their rationale
+- Context about the codebase/user discovered during work
+- Blockers, questions, or follow-ups
+
+Use the Read tool to check memory, and Edit/Write to update it. Keep entries concise and actionable.
 
 ## Web Search
 
