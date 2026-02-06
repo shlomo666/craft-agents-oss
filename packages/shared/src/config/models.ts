@@ -17,7 +17,7 @@ export interface ModelDefinition {
 // ============================================
 
 export const MODELS: ModelDefinition[] = [
-  { id: 'claude-opus-4-5-20251101', name: 'Opus 4.5', shortName: 'Opus', description: 'Most capable', contextWindow: 200000 },
+  { id: 'claude-opus-4-6', name: 'Opus 4.6', shortName: 'Opus', description: 'Most capable', contextWindow: 200000 },
   { id: 'claude-sonnet-4-5-20250929', name: 'Sonnet 4.5', shortName: 'Sonnet', description: 'Balanced', contextWindow: 200000 },
   { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', shortName: 'Haiku', description: 'Fast & efficient', contextWindow: 200000 },
 ];
@@ -30,13 +30,13 @@ export const MODELS: ModelDefinition[] = [
 export const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
 
 /** Model for agent definition extraction (always high quality) */
-export const EXTRACTION_MODEL = 'claude-opus-4-5-20251101';
+export const EXTRACTION_MODEL = 'claude-opus-4-6';
 
 /** Model for API response summarization (cost efficient) */
 export const SUMMARIZATION_MODEL = 'claude-haiku-4-5-20251001';
 
 /** Model for instruction updates (high quality for accurate document editing) */
-export const INSTRUCTION_UPDATE_MODEL = 'claude-opus-4-5-20251101';
+export const INSTRUCTION_UPDATE_MODEL = 'claude-opus-4-6';
 
 // ============================================
 // HELPER FUNCTIONS
