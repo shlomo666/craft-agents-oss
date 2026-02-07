@@ -343,6 +343,13 @@ html[data-font="inter"] {
   font-feature-settings: "cv01", "cv02", "cv03", "cv04", "case";
 }
 
+/* Browser Font - Native TTF (SF Pro on macOS, Segoe UI on Windows)
+   Uses platform-specific system fonts for native look and feel */
+html[data-font="browser"] {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Segoe UI", system-ui, sans-serif;
+  --font-default: var(--font-sans);
+}
+
 /* Theme integration for Tailwind v4 */
 @theme inline {
   /* === 6 BASE COLORS === */

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useState, useRef, useCallback } from "react"
-import { ClipboardPaste, Copy, Scissors, Sparkles } from "lucide-react"
+import { ClipboardPaste, Copy, Scissors, Sparkles, Volume2, VolumeX } from "lucide-react"
 import { toast } from "sonner"
 import {
   ContextMenu,
@@ -59,6 +59,7 @@ export function TextContextMenu({
   const [rephraseMode, setRephraseMode] = useState<'idle' | 'selection' | 'all'>('idle')
   const [hasSelection, setHasSelection] = useState(false)
   const [isGlowing, setIsGlowing] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const capturedSelectionRef = useRef<TextSelection | null>(null)
   const capturedTextRef = useRef('')
   const capturedRangeRef = useRef<Range | null>(null)
@@ -181,6 +182,27 @@ export function TextContextMenu({
     }
   }, [sessionId, availableMentions, getText, setText, triggerGlow])
 
+  const handleSpeak = useCallback(() => {
+    // If already speaking, stop
+    if (isSpeaking) {
+      speechSynthesis.cancel()
+      setIsSpeaking(false)
+      return
+    }
+
+    // Get text to speak: selection if available, otherwise all text
+    const sel = capturedSelectionRef.current
+    const textToSpeak = sel?.text || capturedTextRef.current
+    if (!textToSpeak.trim()) return
+
+    const utterance = new SpeechSynthesisUtterance(textToSpeak)
+    utterance.onend = () => setIsSpeaking(false)
+    utterance.onerror = () => setIsSpeaking(false)
+
+    setIsSpeaking(true)
+    speechSynthesis.speak(utterance)
+  }, [isSpeaking])
+
   return (
     <ContextMenu onOpenChange={handleOpenChange}>
       <ContextMenuTrigger asChild disabled={disabled}>
@@ -203,6 +225,10 @@ export function TextContextMenu({
         <StyledContextMenuItem onSelect={handlePaste}>
           <ClipboardPaste />
           Paste
+        </StyledContextMenuItem>
+        <StyledContextMenuItem onSelect={handleSpeak}>
+          {isSpeaking ? <VolumeX /> : <Volume2 />}
+          {isSpeaking ? 'Stop Speaking' : 'Speak'}
         </StyledContextMenuItem>
         <StyledContextMenuSeparator />
         {hasSelection && (
