@@ -20,6 +20,8 @@ import {
   ListTodo,
   Pencil,
   FilePenLine,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import * as ReactDOM from 'react-dom'
 import { cn } from '../../lib/utils'
@@ -28,7 +30,7 @@ import { Spinner } from '../ui/LoadingIndicator'
 import { parseDiffFromFile, type FileContents } from '@pierre/diffs'
 import { getDiffStats } from '../code-viewer'
 import { TurnCardActionsMenu } from './TurnCardActionsMenu'
-import { computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, getStreamingText, type ActivityGroup, type AssistantTurn } from './turn-utils'
+import { computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, getStreamingText, segmentActivitiesByText, type ActivityGroup, type AssistantTurn, type ActivitySegment } from './turn-utils'
 import { DocumentFormattedMarkdownOverlay } from '../overlay'
 import { AcceptPlanDropdown } from './AcceptPlanDropdown'
 
@@ -816,9 +818,9 @@ function ActivityRow({ activity, onOpenDetails, isLastChild, sessionFolderPath }
               >{diffStats.additions}</span>
             )}
             {/* Filename badge */}
-            {activity.toolInput?.file_path && (
+            {typeof activity.toolInput?.file_path === 'string' && (
               <span className="px-1.5 py-0.5 bg-background shadow-minimal rounded-[4px] text-[11px] text-foreground/70">
-                {(activity.toolInput.file_path as string).split('/').pop()}
+                {activity.toolInput.file_path.split('/').pop() ?? ''}
               </span>
             )}
           </span>
@@ -1116,6 +1118,8 @@ export function ResponseCard({
   const [isFullscreen, setIsFullscreen] = useState(false)
   // Dark mode detection - scroll fade only shown in dark mode
   const [isDarkMode, setIsDarkMode] = useState(false)
+  // Speech synthesis state
+  const [isSpeaking, setIsSpeaking] = useState(false)
 
   // Detect dark mode from document class and listen for changes
   useEffect(() => {
@@ -1139,6 +1143,22 @@ export function ResponseCard({
       console.error('Failed to copy:', err)
     }
   }, [text])
+
+  const handleSpeak = useCallback(() => {
+    if (isSpeaking) {
+      speechSynthesis.cancel()
+      setIsSpeaking(false)
+      return
+    }
+    if (!text.trim()) return
+
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.onend = () => setIsSpeaking(false)
+    utterance.onerror = () => setIsSpeaking(false)
+
+    setIsSpeaking(true)
+    speechSynthesis.speak(utterance)
+  }, [text, isSpeaking])
 
   // Throttle content updates during streaming for performance
   // Updates immediately when streaming ends to show final content
@@ -1261,6 +1281,26 @@ export function ResponseCard({
                   <>
                     <Copy className={SIZE_CONFIG.iconSize} />
                     <span>Copy</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleSpeak}
+                className={cn(
+                  "flex items-center gap-1.5 transition-colors select-none",
+                  isSpeaking ? "text-accent" : "text-muted-foreground hover:text-foreground",
+                  "focus:outline-none focus-visible:underline"
+                )}
+              >
+                {isSpeaking ? (
+                  <>
+                    <VolumeX className={SIZE_CONFIG.iconSize} />
+                    <span>Stop</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className={SIZE_CONFIG.iconSize} />
+                    <span>Speak</span>
                   </>
                 )}
               </button>
@@ -1413,6 +1453,238 @@ function StreamingTextCard({
 }
 
 // ============================================================================
+// Text Activity Card (for segmented activity bar)
+// ============================================================================
+
+interface TextActivityCardProps {
+  /** The intermediate text activity to display */
+  activity: ActivityItem
+  /** Whether this text is currently streaming */
+  isStreaming?: boolean
+  /** Callback to open file in editor */
+  onOpenFile?: (path: string) => void
+  /** Callback to open URL */
+  onOpenUrl?: (url: string) => void
+  /** Callback to open details in Monaco */
+  onOpenDetails?: () => void
+}
+
+/**
+ * TextActivityCard - Renders completed intermediate text as a styled box.
+ *
+ * Similar to ResponseCard but lighter - for "thinking" text between tool calls.
+ * Used in the segmented activity bar to show text activities as visible boxes
+ * instead of truncated "Thinking..." rows.
+ */
+function TextActivityCard({
+  activity,
+  isStreaming,
+  onOpenFile,
+  onOpenUrl,
+  onOpenDetails,
+}: TextActivityCardProps) {
+  const text = activity.content || ''
+
+  // While streaming, use StreamingTextCard styling
+  if (isStreaming || activity.status === 'running') {
+    return (
+      <StreamingTextCard
+        text={text}
+        onOpenFile={onOpenFile}
+        onOpenUrl={onOpenUrl}
+      />
+    )
+  }
+
+  // Completed text - render as a simple styled box
+  const MAX_HEIGHT = 300
+
+  return (
+    <div className="bg-background/50 shadow-minimal rounded-[8px] overflow-hidden group relative">
+      {/* Content area */}
+      <div
+        className="px-4 py-3 text-sm overflow-y-auto"
+        style={{ maxHeight: MAX_HEIGHT }}
+      >
+        <Markdown
+          mode="minimal"
+          onUrlClick={onOpenUrl}
+          onFileClick={onOpenFile}
+        >
+          {text}
+        </Markdown>
+      </div>
+      {/* Open details button - shown on hover */}
+      {onOpenDetails && (
+        <button
+          onClick={onOpenDetails}
+          className={cn(
+            "absolute top-2 right-2 p-1 rounded-[6px] transition-all z-10 select-none",
+            "opacity-0 group-hover:opacity-100",
+            "bg-background shadow-minimal",
+            "text-muted-foreground/50 hover:text-foreground",
+            "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:opacity-100"
+          )}
+          title="View Details"
+        >
+          <ArrowUpRight className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
+// Tool Group Section (for segmented activity bar)
+// ============================================================================
+
+interface ToolGroupSectionProps {
+  /** The segment containing tool activities */
+  segment: ActivitySegment
+  /** Whether this group is expanded */
+  isExpanded: boolean
+  /** Callback to toggle expansion */
+  onToggleExpand: () => void
+  /** Callback to open activity details in Monaco */
+  onOpenActivityDetails?: (activity: ActivityItem) => void
+  /** Controlled expansion state for nested Task groups */
+  expandedActivityGroups?: Set<string>
+  /** Callback when nested Task group expansion changes */
+  onExpandedActivityGroupsChange?: (groups: Set<string>) => void
+  /** Session folder path for stripping from file paths */
+  sessionFolderPath?: string
+}
+
+/**
+ * ToolGroupSection - Collapsible section for tool activities.
+ *
+ * Used in the segmented activity bar to group non-text activities
+ * between text boxes. Defaults to expanded, can be collapsed.
+ */
+function ToolGroupSection({
+  segment,
+  isExpanded,
+  onToggleExpand,
+  onOpenActivityDetails,
+  expandedActivityGroups,
+  onExpandedActivityGroupsChange,
+  sessionFolderPath,
+}: ToolGroupSectionProps) {
+  const count = segment.activities.length
+
+  // Check if we have any Task subagents in this segment
+  const hasTaskSubagents = segment.activities.some(a => a.toolName === 'Task')
+
+  // Group activities by parent Task for visualization (if there are Task subagents)
+  const groupedActivities = useMemo(
+    () => hasTaskSubagents ? groupActivitiesByParent(segment.activities) : null,
+    [segment.activities, hasTaskSubagents]
+  )
+
+  // Pre-compute last child set for flat view
+  const lastChildSet = useMemo(
+    () => !hasTaskSubagents ? computeLastChildSet(segment.activities) : new Set<string>(),
+    [segment.activities, hasTaskSubagents]
+  )
+
+  return (
+    <div className="space-y-0.5">
+      {/* Collapsible header */}
+      <button
+        onClick={onToggleExpand}
+        className={cn(
+          "flex items-center gap-2 w-full px-2 py-1 rounded-md text-left",
+          SIZE_CONFIG.fontSize,
+          "text-muted-foreground/70",
+          "hover:bg-muted/30 hover:text-muted-foreground transition-colors",
+          "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        )}
+      >
+        {/* Chevron */}
+        <motion.div
+          initial={false}
+          animate={{ rotate: isExpanded ? 90 : 0 }}
+          transition={{ duration: 0.15, ease: 'easeOut' }}
+          className={cn(SIZE_CONFIG.iconSize, "flex items-center justify-center shrink-0")}
+        >
+          <ChevronRight className={SIZE_CONFIG.iconSize} />
+        </motion.div>
+
+        {/* Activity count */}
+        <span className="text-[11px]">
+          {count} {count === 1 ? 'activity' : 'activities'}
+        </span>
+      </button>
+
+      {/* Expanded content */}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{
+              height: { duration: 0.2, ease: [0.4, 0, 0.2, 1] },
+              opacity: { duration: 0.15 }
+            }}
+            className="overflow-hidden"
+          >
+            <div className="pl-4 pr-2 py-0 space-y-0.5 border-l-2 border-muted/50 ml-[5px]">
+              {/* Grouped view for Task subagents */}
+              {groupedActivities ? (
+                groupedActivities.map((item, index) => (
+                  isActivityGroup(item) ? (
+                    <ActivityGroupRow
+                      key={item.parent.id}
+                      group={item}
+                      expandedGroups={expandedActivityGroups}
+                      onExpandedGroupsChange={onExpandedActivityGroupsChange}
+                      onOpenActivityDetails={onOpenActivityDetails}
+                      animationIndex={index}
+                      sessionFolderPath={sessionFolderPath}
+                    />
+                  ) : (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index < SIZE_CONFIG.staggeredAnimationLimit ? index * 0.03 : 0.3 }}
+                    >
+                      <ActivityRow
+                        activity={item}
+                        onOpenDetails={onOpenActivityDetails ? () => onOpenActivityDetails(item) : undefined}
+                        sessionFolderPath={sessionFolderPath}
+                      />
+                    </motion.div>
+                  )
+                ))
+              ) : (
+                /* Flat view for simple tool calls */
+                segment.activities.map((activity, index) => (
+                  <motion.div
+                    key={activity.id}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index < SIZE_CONFIG.staggeredAnimationLimit ? index * 0.03 : 0.3 }}
+                  >
+                    <ActivityRow
+                      activity={activity}
+                      onOpenDetails={onOpenActivityDetails ? () => onOpenActivityDetails(activity) : undefined}
+                      isLastChild={lastChildSet.has(activity.id)}
+                      sessionFolderPath={sessionFolderPath}
+                    />
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ============================================================================
 // TodoList Component (for TodoWrite tool visualization)
 // ============================================================================
 
@@ -1542,7 +1814,7 @@ export const TurnCard = React.memo(function TurnCard({
     return deriveTurnPhase(turnData as AssistantTurn)
   }, [isComplete, response, activities])
 
-  // Use local state if no controlled state provided
+  // Use local state if no controlled state provided (for legacy non-segmented view)
   const [localExpandedTurns, setLocalExpandedTurns] = useState<Set<string>>(() => defaultExpanded ? new Set([turnId]) : new Set())
   const isExpanded = externalIsExpanded ?? localExpandedTurns.has(turnId)
 
@@ -1567,6 +1839,22 @@ export const TurnCard = React.memo(function TurnCard({
   const [localExpandedActivityGroups, setLocalExpandedActivityGroups] = useState<Set<string>>(new Set())
   const expandedActivityGroups = externalExpandedActivityGroups ?? localExpandedActivityGroups
   const handleExpandedActivityGroupsChange = onExpandedActivityGroupsChange ?? setLocalExpandedActivityGroups
+
+  // State for collapsed tool segments (in segmented view)
+  // Default: all expanded (empty set means nothing collapsed)
+  const [collapsedSegments, setCollapsedSegments] = useState<Set<string>>(new Set())
+
+  const toggleSegmentExpanded = useCallback((segmentId: string) => {
+    setCollapsedSegments(prev => {
+      const next = new Set(prev)
+      if (next.has(segmentId)) {
+        next.delete(segmentId)
+      } else {
+        next.add(segmentId)
+      }
+      return next
+    })
+  }, [])
 
   // Check if response is in buffering state
   // No polling needed - parent updates trigger re-evaluation naturally
@@ -1616,6 +1904,22 @@ export const TurnCard = React.memo(function TurnCard({
     [sortedActivities, hasTaskSubagents]
   )
 
+  // Segment activities by text breaks for the segmented view
+  const segments = useMemo(
+    () => segmentActivitiesByText(sortedActivities),
+    [sortedActivities]
+  )
+
+  // Check if we have any intermediate text activities - if so, use segmented view
+  // This includes both completed and running (streaming) text activities
+  const hasTextActivities = useMemo(
+    () => sortedActivities.some(a => a.type === 'intermediate' && a.content?.trim()),
+    [sortedActivities]
+  )
+
+  // Use segmented view when there are any text activities
+  const useSegmentedView = hasTextActivities
+
   // Don't render if nothing to show and turn is complete
   if (activities.length === 0 && !response && isComplete) {
     return null
@@ -1650,9 +1954,87 @@ export const TurnCard = React.memo(function TurnCard({
   const isThinking = shouldShowThinkingIndicator(turnPhase, isBuffering) && !streamingText
 
   return (
-    <div className="space-y-1">
-      {/* Activity Section */}
-      {hasActivities && (
+    <div className="space-y-2">
+      {/* Activity Section - Segmented View (text activities present) */}
+      {hasActivities && useSegmentedView && (
+        <div className="space-y-2 select-none">
+          {segments.map((segment, segmentIndex) => {
+            // Skip streaming text activities - they're shown in StreamingTextCard
+            if (segment.type === 'text') {
+              const activity = segment.activities[0]!
+              if (streamingText && activity.id === streamingText.activityId) {
+                return null
+              }
+              // Skip text activities that are still running (handled by streamingText)
+              if (activity.status === 'running') {
+                return null
+              }
+              // Render completed text as TextActivityCard
+              return (
+                <motion.div
+                  key={segment.id}
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: segmentIndex * 0.05 }}
+                  className="select-text"
+                >
+                  <TextActivityCard
+                    activity={activity}
+                    onOpenFile={onOpenFile}
+                    onOpenUrl={onOpenUrl}
+                    onOpenDetails={onOpenActivityDetails ? () => onOpenActivityDetails(activity) : undefined}
+                  />
+                </motion.div>
+              )
+            }
+
+            // Tool segment - render as collapsible ToolGroupSection
+            // Filter out streaming intermediate activities from tools segment
+            const filteredActivities = segment.activities.filter(
+              a => !(streamingText && a.id === streamingText.activityId)
+            )
+            if (filteredActivities.length === 0) return null
+
+            return (
+              <motion.div
+                key={segment.id}
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: segmentIndex * 0.05 }}
+              >
+                <ToolGroupSection
+                  segment={{ ...segment, activities: filteredActivities }}
+                  isExpanded={!collapsedSegments.has(segment.id)}
+                  onToggleExpand={() => toggleSegmentExpanded(segment.id)}
+                  onOpenActivityDetails={onOpenActivityDetails}
+                  expandedActivityGroups={expandedActivityGroups}
+                  onExpandedActivityGroupsChange={handleExpandedActivityGroupsChange}
+                  sessionFolderPath={sessionFolderPath}
+                />
+              </motion.div>
+            )
+          })}
+          {/* Thinking/Buffering indicator - shown while waiting for response */}
+          {isThinking && (
+            <motion.div
+              key="thinking"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={cn("flex items-center gap-2 px-2 py-1.5 text-muted-foreground/70", SIZE_CONFIG.fontSize)}
+            >
+              <Spinner className={SIZE_CONFIG.spinnerSize} />
+              <span>{isBuffering ? 'Preparing response...' : 'Thinking...'}</span>
+            </motion.div>
+          )}
+          {/* TodoList - shown at end of segments */}
+          {todos && todos.length > 0 && (
+            <TodoList todos={todos} />
+          )}
+        </div>
+      )}
+
+      {/* Activity Section - Legacy Collapsible View (no text activities) */}
+      {hasActivities && !useSegmentedView && (
         <div className="group select-none">
           {/* Collapsed Header / Toggle */}
           <button
