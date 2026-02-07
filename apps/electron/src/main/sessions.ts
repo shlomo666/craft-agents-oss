@@ -44,7 +44,7 @@ import { setAnthropicOptionsEnv, setPathToClaudeCodeExecutable, setInterceptorPa
 import { getCredentialManager } from '@craft-agent/shared/credentials'
 import { CraftMcpClient } from '@craft-agent/shared/mcp'
 import { type Session, type Message, type SessionEvent, type FileAttachment, type StoredAttachment, type SendMessageOptions, IPC_CHANNELS, generateMessageId } from '../shared/types'
-import { generateSessionTitle, regenerateSessionTitle, rephraseUserMessage, formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrl, getEmojiIcon, resetSummarizationClient, resolveToolIcon } from '@craft-agent/shared/utils'
+import { generateSessionTitle, regenerateSessionTitle, rephraseUserMessage, transformForVoice, formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrl, getEmojiIcon, resetSummarizationClient, resolveToolIcon } from '@craft-agent/shared/utils'
 import { loadWorkspaceSkills, type LoadedSkill } from '@craft-agent/shared/skills'
 import type { ToolDisplayMeta } from '@craft-agent/core/types'
 import { DEFAULT_MODEL, getToolIconsDir } from '@craft-agent/shared/config'
@@ -2352,6 +2352,47 @@ export class SessionManager {
   }
 
   /**
+   * Transform message text for voice/speech synthesis using AI.
+   * Caches the result on the message's voiceText field for future use.
+   */
+  async transformForSpeech(sessionId: string, messageId: string): Promise<{ success: boolean; voiceText?: string; error?: string }> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) return { success: false, error: 'Session not found' }
+
+    await this.ensureMessagesLoaded(managed)
+
+    const message = managed.messages.find(m => m.id === messageId)
+    if (!message) return { success: false, error: 'Message not found' }
+
+    // Return cached voiceText if available
+    if (message.voiceText) {
+      return { success: true, voiceText: message.voiceText }
+    }
+
+    managed.isAsyncOperationOngoing = true
+    this.sendEvent({ type: 'async_operation', sessionId, isOngoing: true }, managed.workspace.id)
+
+    try {
+      const voiceText = await transformForVoice(message.content)
+      if (voiceText) {
+        // Cache the result on the message
+        message.voiceText = voiceText
+        // Persist the updated session
+        this.persistSession(managed)
+        return { success: true, voiceText }
+      }
+      return { success: false, error: 'Failed to transform text for speech' }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      sessionLog.error(`Failed to transform text for speech in session ${sessionId}:`, error)
+      return { success: false, error: errorMessage }
+    } finally {
+      managed.isAsyncOperationOngoing = false
+      this.sendEvent({ type: 'async_operation', sessionId, isOngoing: false }, managed.workspace.id)
+    }
+  }
+
+  /**
    * Update the working directory for a session
    */
   updateWorkingDirectory(sessionId: string, path: string): void {
@@ -2628,6 +2669,14 @@ export class SessionManager {
     // Get or create the agent (lazy loading)
     const agent = await this.getOrCreateAgent(managed)
     sendSpan.mark('agent.ready')
+
+    // Apply source slugs atomically with the message (fixes race condition where
+    // source IPC and message IPC arrive in different order)
+    if (options?.sourceSlugs?.length) {
+      managed.enabledSourceSlugs = options.sourceSlugs
+      this.persistSession(managed)
+      sessionLog.info(`Applied source slugs from message options: ${options.sourceSlugs.join(', ')}`)
+    }
 
     // Always set all sources for context (even if none are enabled), including built-ins
     const workspaceRootPath = managed.workspace.rootPath

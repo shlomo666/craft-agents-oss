@@ -392,6 +392,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
         return sessionManager.branchFromMessage(sessionId, command.messageId)
       case 'rephrase_text':
         return sessionManager.rephraseText(sessionId, command.text, command.availableMentions)
+      case 'transform_for_speech':
+        return sessionManager.transformForSpeech(sessionId, command.messageId)
       default: {
         const _exhaustive: never = command
         throw new Error(`Unknown session command: ${JSON.stringify(command)}`)

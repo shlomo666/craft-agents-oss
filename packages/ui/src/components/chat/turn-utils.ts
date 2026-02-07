@@ -512,6 +512,8 @@ export function groupMessagesByTurn(messages: Message[]): Turn[] {
         text: message.content,
         isStreaming: false,
         isPlan: true,
+        messageId: message.id,
+        voiceText: message.voiceText,
       }
       currentTurn.isStreaming = false
       currentTurn.isComplete = true
@@ -610,6 +612,8 @@ export function groupMessagesByTurn(messages: Message[]): Turn[] {
         text: message.content,
         isStreaming: !!message.isStreaming,
         streamStartTime: message.isStreaming ? message.timestamp : undefined,
+        messageId: message.id,
+        voiceText: message.voiceText,
       }
       currentTurn.isStreaming = !!message.isStreaming
       currentTurn.isComplete = !message.isStreaming
@@ -1201,4 +1205,70 @@ export function countTotalActivities(items: (ActivityItem | ActivityGroup)[]): n
     }
   }
   return count
+}
+
+// ============================================================================
+// Activity Segmentation by Text
+// ============================================================================
+
+/**
+ * Represents a segment of activities - either a text activity or a group of tool activities
+ */
+export interface ActivitySegment {
+  type: 'text' | 'tools'
+  activities: ActivityItem[]
+  id: string // For React keys and expansion tracking
+}
+
+/**
+ * Segments activities by text breaks.
+ *
+ * This transforms a chronological list of activities into segments:
+ * - Text activities (type: 'intermediate') become their own segments
+ * - Tool activities are grouped together between text segments
+ *
+ * This enables the "text-segmented activity bar" UI where:
+ * - Text activities appear as visible styled boxes
+ * - Tool activities are grouped in collapsible sections between text boxes
+ *
+ * @param activities - Flat list of activities sorted by timestamp
+ * @returns Array of segments (text or tools)
+ */
+export function segmentActivitiesByText(activities: ActivityItem[]): ActivitySegment[] {
+  const segments: ActivitySegment[] = []
+  let currentToolGroup: ActivityItem[] = []
+
+  for (const activity of activities) {
+    if (activity.type === 'intermediate') {
+      // Flush any pending tool group before adding text segment
+      if (currentToolGroup.length > 0) {
+        segments.push({
+          type: 'tools',
+          activities: currentToolGroup,
+          id: `tools-${currentToolGroup[0]!.id}`,
+        })
+        currentToolGroup = []
+      }
+      // Add text as its own segment
+      segments.push({
+        type: 'text',
+        activities: [activity],
+        id: `text-${activity.id}`,
+      })
+    } else {
+      // Accumulate non-text activities (tools, status, etc.)
+      currentToolGroup.push(activity)
+    }
+  }
+
+  // Flush remaining tool group
+  if (currentToolGroup.length > 0) {
+    segments.push({
+      type: 'tools',
+      activities: currentToolGroup,
+      id: `tools-${currentToolGroup[0]!.id}`,
+    })
+  }
+
+  return segments
 }

@@ -7,4 +7,5 @@ export * from './perf.ts';
 export * from './summarize.ts';
 export * from './title-generator.ts';
 export * from './rephrase-generator.ts';
+export * from './voice-transformer.ts';
 export * from './toolNames.ts';

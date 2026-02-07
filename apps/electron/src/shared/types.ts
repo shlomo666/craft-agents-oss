@@ -154,6 +154,15 @@ export interface RephraseResult {
   error?: string
 }
 
+/**
+ * Result of transforming text for voice/speech synthesis
+ */
+export interface TransformForSpeechResult {
+  success: boolean
+  voiceText?: string
+  error?: string
+}
+
 
 // Re-export permission types from core, extended with sessionId for multi-session context
 export type { PermissionRequest as BasePermissionRequest } from '@craft-agent/core/types';
@@ -429,6 +438,8 @@ export interface SendMessageOptions {
   skillSlugs?: string[]
   /** Content badges for inline display (sources, skills with embedded icons) */
   badges?: import('@craft-agent/core').ContentBadge[]
+  /** Source slugs to enable for this message (ensures atomic delivery with the message) */
+  sourceSlugs?: string[]
 }
 
 // =============================================================================
@@ -468,6 +479,7 @@ export type SessionCommand =
   | { type: 'delete'; messageId: string }
   | { type: 'branch'; messageId: string }
   | { type: 'rephrase_text'; text: string; availableMentions?: string[] }
+  | { type: 'transform_for_speech'; messageId: string }
 
 /**
  * Parameters for opening a new chat session
@@ -752,7 +764,7 @@ export interface ElectronAPI {
   respondToCredential(sessionId: string, requestId: string, response: CredentialResponse): Promise<boolean>
 
   // Consolidated session command handler
-  sessionCommand(sessionId: string, command: SessionCommand): Promise<void | ShareResult | RefreshTitleResult | RephraseResult>
+  sessionCommand(sessionId: string, command: SessionCommand): Promise<void | ShareResult | RefreshTitleResult | RephraseResult | TransformForSpeechResult>
 
   // Pending plan execution (for reload recovery)
   getPendingPlanExecution(sessionId: string): Promise<{ planPath: string; awaitingCompaction: boolean } | null>

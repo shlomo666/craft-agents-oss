@@ -179,6 +179,8 @@ export interface Message {
   errorCanRetry?: boolean;
   // Ultrathink mode - indicates this user message was sent with extended thinking
   ultrathink?: boolean;
+  // Voice text - AI-transformed version of content optimized for speech synthesis
+  voiceText?: string;
   // Plan-specific fields (for role='plan')
   planPath?: string;  // Path to the plan markdown file
   // Auth-request-specific fields (for role='auth-request')
@@ -247,6 +249,8 @@ export interface StoredMessage {
   errorCanRetry?: boolean;
   // Ultrathink mode - indicates this user message was sent with extended thinking
   ultrathink?: boolean;
+  // Voice text - AI-transformed version of content optimized for speech synthesis (cached)
+  voiceText?: string;
   // Plan-specific fields (for role='plan')
   planPath?: string;
   // Auth-request-specific fields (for role='auth-request')

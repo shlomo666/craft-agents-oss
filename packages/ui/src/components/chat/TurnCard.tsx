@@ -184,6 +184,10 @@ export interface ResponseContent {
   streamStartTime?: number
   /** Whether this response is a plan (renders with plan variant) */
   isPlan?: boolean
+  /** Message ID for voice text transformation */
+  messageId?: string
+  /** Cached voice-optimized text for speech synthesis */
+  voiceText?: string
 }
 
 // ============================================================================
@@ -241,6 +245,8 @@ export interface TurnCardProps {
   isLastResponse?: boolean
   /** Session folder path for stripping from file paths in tool display */
   sessionFolderPath?: string
+  /** Callback to transform text for speech synthesis (returns voice-optimized text) */
+  onTransformForSpeech?: (messageId: string) => Promise<{ success: boolean; voiceText?: string; error?: string }>
 }
 
 // ============================================================================
@@ -1078,6 +1084,12 @@ export interface ResponseCardProps {
   isLastResponse?: boolean
   /** Whether to show the Accept Plan button (default: true) */
   showAcceptPlan?: boolean
+  /** Message ID for voice transformation */
+  messageId?: string
+  /** Cached voice-optimized text (if already transformed) */
+  voiceText?: string
+  /** Callback to transform text for speech (called if voiceText not cached) */
+  onTransformForSpeech?: (messageId: string) => Promise<{ success: boolean; voiceText?: string; error?: string }>
 }
 
 /**
@@ -1108,6 +1120,9 @@ export function ResponseCard({
   onAcceptWithCompact,
   isLastResponse = true,
   showAcceptPlan = true,
+  messageId,
+  voiceText: cachedVoiceText,
+  onTransformForSpeech,
 }: ResponseCardProps) {
   // Throttled content for display - updates every CONTENT_THROTTLE_MS during streaming
   const [displayedText, setDisplayedText] = useState(text)
@@ -1120,6 +1135,9 @@ export function ResponseCard({
   const [isDarkMode, setIsDarkMode] = useState(false)
   // Speech synthesis state
   const [isSpeaking, setIsSpeaking] = useState(false)
+  // Voice transformation state
+  const [isTransforming, setIsTransforming] = useState(false)
+  const [voiceText, setVoiceText] = useState(cachedVoiceText)
 
   // Detect dark mode from document class and listen for changes
   useEffect(() => {
@@ -1144,7 +1162,8 @@ export function ResponseCard({
     }
   }, [text])
 
-  const handleSpeak = useCallback(() => {
+  const handleSpeak = useCallback(async () => {
+    // If already speaking, stop
     if (isSpeaking) {
       speechSynthesis.cancel()
       setIsSpeaking(false)
@@ -1152,13 +1171,32 @@ export function ResponseCard({
     }
     if (!text.trim()) return
 
-    const utterance = new SpeechSynthesisUtterance(text)
+    // Get voice-optimized text (cached or transform)
+    let textToSpeak = voiceText
+    if (!textToSpeak && messageId && onTransformForSpeech) {
+      setIsTransforming(true)
+      try {
+        const result = await onTransformForSpeech(messageId)
+        if (result.success && result.voiceText) {
+          textToSpeak = result.voiceText
+          setVoiceText(result.voiceText)
+        }
+      } catch (err) {
+        console.error('Failed to transform text for speech:', err)
+      } finally {
+        setIsTransforming(false)
+      }
+    }
+
+    // Fall back to original text if transformation failed
+    const finalText = textToSpeak || text
+    const utterance = new SpeechSynthesisUtterance(finalText)
     utterance.onend = () => setIsSpeaking(false)
     utterance.onerror = () => setIsSpeaking(false)
 
     setIsSpeaking(true)
     speechSynthesis.speak(utterance)
-  }, [text, isSpeaking])
+  }, [text, voiceText, messageId, onTransformForSpeech, isSpeaking])
 
   // Throttle content updates during streaming for performance
   // Updates immediately when streaming ends to show final content
@@ -1286,13 +1324,20 @@ export function ResponseCard({
               </button>
               <button
                 onClick={handleSpeak}
+                disabled={isTransforming}
                 className={cn(
                   "flex items-center gap-1.5 transition-colors select-none",
-                  isSpeaking ? "text-accent" : "text-muted-foreground hover:text-foreground",
-                  "focus:outline-none focus-visible:underline"
+                  isSpeaking ? "text-accent" : isTransforming ? "text-muted-foreground" : "text-muted-foreground hover:text-foreground",
+                  "focus:outline-none focus-visible:underline",
+                  isTransforming && "cursor-wait"
                 )}
               >
-                {isSpeaking ? (
+                {isTransforming ? (
+                  <>
+                    <Volume2 className={cn(SIZE_CONFIG.iconSize, "animate-pulse")} />
+                    <span>Transforming...</span>
+                  </>
+                ) : isSpeaking ? (
                   <>
                     <VolumeX className={SIZE_CONFIG.iconSize} />
                     <span>Stop</span>
@@ -1800,6 +1845,7 @@ export const TurnCard = React.memo(function TurnCard({
   onAcceptPlanWithCompact,
   isLastResponse,
   sessionFolderPath,
+  onTransformForSpeech,
 }: TurnCardProps) {
   // Derive the turn phase from props using the state machine.
   // This provides a single source of truth for lifecycle state,
@@ -2222,6 +2268,9 @@ export const TurnCard = React.memo(function TurnCard({
             onAccept={onAcceptPlan}
             onAcceptWithCompact={onAcceptPlanWithCompact}
             isLastResponse={isLastResponse}
+            messageId={response.messageId}
+            voiceText={response.voiceText}
+            onTransformForSpeech={onTransformForSpeech}
           />
         </div>
       )}

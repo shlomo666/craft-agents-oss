@@ -109,7 +109,7 @@ type OverlayState =
 
 interface ChatDisplayProps {
   session: Session | null
-  onSendMessage: (message: string, attachments?: FileAttachment[], skillSlugs?: string[], storedAttachments?: StoredAttachment[]) => void
+  onSendMessage: (message: string, attachments?: FileAttachment[], skillSlugs?: string[], storedAttachments?: StoredAttachment[], sourceSlugs?: string[]) => void
   onOpenFile: (path: string) => void
   onOpenUrl: (url: string) => void
   // Model selection
@@ -625,10 +625,10 @@ export function ChatDisplay({
 
   // Handle message submission from InputContainer
   // Backend handles interruption and queueing if currently processing
-  const handleSubmit = (message: string, attachments?: FileAttachment[], skillSlugs?: string[]) => {
+  const handleSubmit = (message: string, attachments?: FileAttachment[], skillSlugs?: string[], sourceSlugs?: string[]) => {
     // Force stick-to-bottom when user sends a message
     isStickToBottomRef.current = true
-    onSendMessage(message, attachments, skillSlugs)
+    onSendMessage(message, attachments, skillSlugs, undefined, sourceSlugs)
 
     // Immediately scroll to bottom after sending - use requestAnimationFrame
     // to ensure the DOM has updated with the new message
@@ -1028,6 +1028,11 @@ export function ChatDisplay({
                         onOpenUrl={onOpenUrl}
                         isLastResponse={isLastResponse}
                         onAcceptPlan={() => {
+                          console.log('[ChatDisplay] Dispatching craft:approve-plan', {
+                            sessionId: session?.id,
+                            hasSession: !!session,
+                            text: 'Plan approved, please execute.'
+                          })
                           window.dispatchEvent(new CustomEvent('craft:approve-plan', {
                             detail: { text: 'Plan approved, please execute.', sessionId: session?.id }
                           }))
@@ -1037,6 +1042,13 @@ export function ChatDisplay({
                           // After compaction, Claude needs to know which plan file to read
                           const planMessage = session?.messages.findLast(m => m.role === 'plan')
                           const planPath = planMessage?.planPath
+
+                          console.log('[ChatDisplay] Dispatching craft:approve-plan-with-compact', {
+                            sessionId: session?.id,
+                            hasSession: !!session,
+                            planPath,
+                            foundPlanMessage: !!planMessage
+                          })
 
                           // Dispatch event to compact conversation first, then execute plan
                           // FreeFormInput handles this by sending /compact, waiting for completion,
@@ -1127,6 +1139,13 @@ export function ChatDisplay({
                               consolidated: true, // Consolidated mode - group by file
                             })
                           }
+                        }}
+                        onTransformForSpeech={async (messageId) => {
+                          const result = await window.electronAPI.sessionCommand(session.id, {
+                            type: 'transform_for_speech',
+                            messageId,
+                          })
+                          return result as { success: boolean; voiceText?: string; error?: string }
                         }}
                       />
                           </div>
