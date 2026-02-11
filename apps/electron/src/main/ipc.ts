@@ -2161,7 +2161,10 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Generic workspace image loading (for source icons, status icons, etc.)
   ipcMain.handle(IPC_CHANNELS.WORKSPACE_READ_IMAGE, async (_event, workspaceId: string, relativePath: string) => {
     const workspace = getWorkspaceByNameOrId(workspaceId)
-    if (!workspace) throw new Error('Workspace not found')
+    if (!workspace) {
+      console.error('[workspace:readImage] Workspace not found:', { workspaceId, relativePath })
+      throw new Error('Workspace not found')
+    }
 
     const { readFileSync, existsSync } = await import('fs')
     const { join, normalize } = await import('path')
