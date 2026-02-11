@@ -98,6 +98,30 @@ export function ensureSessionDir(workspaceRootPath: string, sessionId: string): 
   if (!existsSync(downloadsDir)) {
     mkdirSync(downloadsDir, { recursive: true });
   }
+
+  // Create memory file with initial template if it doesn't exist
+  const memoryFile = join(sessionDir, 'memory.md');
+  if (!existsSync(memoryFile)) {
+    const memoryTemplate = `# Session Memory
+
+> This file persists important information across context compaction.
+> Update it as you work to preserve progress, decisions, and important context.
+
+## Current Task
+
+
+## Progress
+
+
+## Important Context
+
+
+## Notes
+
+`;
+    writeFileSync(memoryFile, memoryTemplate, 'utf-8');
+  }
+
   return sessionDir;
 }
 
@@ -120,6 +144,15 @@ export function getSessionPlansPath(workspaceRootPath: string, sessionId: string
  */
 export function getSessionDownloadsPath(workspaceRootPath: string, sessionId: string): string {
   return join(getSessionPath(workspaceRootPath, sessionId), 'downloads');
+}
+
+/**
+ * Get the memory file path for a session.
+ * The memory file is a markdown notebook the agent uses to persist important
+ * information across context compaction.
+ */
+export function getSessionMemoryPath(workspaceRootPath: string, sessionId: string): string {
+  return join(getSessionPath(workspaceRootPath, sessionId), 'memory.md');
 }
 
 // ============================================================
