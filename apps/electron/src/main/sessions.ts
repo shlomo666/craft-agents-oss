@@ -2765,6 +2765,10 @@ ${message}`
       const chatIterator = agent.chat(chatMessage, attachments)
       sessionLog.info('Got chat iterator, starting iteration...')
 
+      // Track if this is a /compact command so we can show feedback if nothing happens
+      const isCompactCommand = chatMessage.trim().toLowerCase().startsWith('/compact')
+      let sawCompactionEvent = false
+
       for await (const event of chatIterator) {
         // Log events (skip noisy text_delta)
         if (event.type !== 'text_delta') {
@@ -2774,6 +2778,15 @@ ${message}`
             sessionLog.info(`tool_result: ${event.toolUseId} isError=${event.isError}`)
           } else {
             sessionLog.info('Got event:', event.type)
+          }
+        }
+
+        // Track compaction events for /compact command feedback
+        if (isCompactCommand) {
+          if (event.type === 'status' && event.message.includes('Compacting')) {
+            sawCompactionEvent = true
+          } else if (event.type === 'info' && event.message.startsWith('Compacted')) {
+            sawCompactionEvent = true
           }
         }
 
@@ -2808,6 +2821,16 @@ ${message}`
           }
 
           sessionLog.info('Chat completed via complete event')
+
+          // If this was a /compact command but no compaction happened, show feedback
+          if (isCompactCommand && !sawCompactionEvent) {
+            sessionLog.info('Compact command completed without compaction - showing feedback')
+            this.sendEvent({
+              type: 'info',
+              sessionId,
+              message: 'Nothing to compact — conversation is below the compaction threshold.',
+            }, managed.workspace.id)
+          }
 
           // Check if we got an assistant response in this turn
           // If not, the SDK may have hit context limits or other issues
@@ -3710,7 +3733,9 @@ To view this task's output:
         break
 
       case 'info': {
-        const isCompactionComplete = event.message.startsWith('Compacted')
+        // Check if this is a compaction complete event - either via statusType (preferred)
+        // or via message content (legacy fallback for 'Compacted' prefix)
+        const isCompactionComplete = event.statusType === 'compaction_complete' || event.message.startsWith('Compacted')
 
         // Persist compaction messages so they survive reload
         // Other info messages are transient (just sent to renderer)

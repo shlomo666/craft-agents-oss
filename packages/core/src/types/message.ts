@@ -374,7 +374,7 @@ export interface AgentEventUsage {
  */
 export type AgentEvent =
   | { type: 'status'; message: string }
-  | { type: 'info'; message: string }
+  | { type: 'info'; message: string; statusType?: 'compaction_complete' }
   | { type: 'text_delta'; text: string; turnId?: string; parentToolUseId?: string }
   | { type: 'text_complete'; text: string; isIntermediate?: boolean; turnId?: string; parentToolUseId?: string }
   | { type: 'tool_start'; toolName: string; toolUseId: string; input: Record<string, unknown>; intent?: string; displayName?: string; turnId?: string; parentToolUseId?: string; toolDisplayMeta?: ToolDisplayMeta }

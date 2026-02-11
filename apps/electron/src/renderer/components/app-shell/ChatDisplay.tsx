@@ -326,6 +326,53 @@ function ProcessingIndicator({ startTime, statusMessage }: ProcessingIndicatorPr
 }
 
 /**
+ * Expandable compaction divider - shows summary when clicked
+ */
+function CompactionDivider({ content }: { content: string }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  return (
+    <div className="my-12 px-3">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center gap-3 group cursor-pointer"
+      >
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-sm text-muted-foreground/70 select-none flex items-center gap-1.5 group-hover:text-muted-foreground transition-colors">
+          {isExpanded ? (
+            <ChevronDown className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronRight className="w-3.5 h-3.5" />
+          )}
+          Conversation Compacted
+        </span>
+        <div className="flex-1 h-px bg-border" />
+      </button>
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-4 p-4 rounded-lg bg-muted/30 border border-border/50">
+              <div className="text-xs text-muted-foreground/60 mb-2 font-medium">
+                Summary provided to agent
+              </div>
+              <div className="text-sm text-muted-foreground prose prose-sm max-w-none">
+                <Markdown mode="minimal">{content}</Markdown>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+/**
  * Scrolls to target element on mount, before browser paint.
  * Uses useLayoutEffect to ensure scroll happens before content is visible.
  */
@@ -1596,18 +1643,10 @@ function MessageBubble({
 
   // === INFO MESSAGE: Icon and color based on level ===
   if (message.role === 'info') {
-    // Compaction complete message - render as horizontal rule with centered label
-    // This persists after reload to show where context was compacted
+    // Compaction complete message - render as expandable horizontal rule
+    // Click to reveal the compaction summary provided to the agent
     if (message.statusType === 'compaction_complete') {
-      return (
-        <div className="flex items-center gap-3 my-12 px-3">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-sm text-muted-foreground/70 select-none">
-            Conversation Compacted
-          </span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
-      )
+      return <CompactionDivider content={message.content} />
     }
 
     const level = message.infoLevel || 'info'
