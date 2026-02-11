@@ -739,7 +739,7 @@ export default function App() {
     window.electronAPI.sessionCommand(sessionId, { type: 'rename', name })
   }, [updateSessionById])
 
-  const handleSendMessage = useCallback(async (sessionId: string, message: string, attachments?: FileAttachment[], skillSlugs?: string[], existingStoredAttachments?: StoredAttachment[]) => {
+  const handleSendMessage = useCallback(async (sessionId: string, message: string, attachments?: FileAttachment[], skillSlugs?: string[], existingStoredAttachments?: StoredAttachment[], sourceSlugs?: string[]) => {
     try {
       // Step 1: Store attachments and get persistent metadata
       let storedAttachments: StoredAttachment[] | undefined
@@ -898,10 +898,12 @@ export default function App() {
       }))
 
       // Step 6: Send to Claude with processed attachments + stored attachments for persistence
+      // Include sourceSlugs for atomic delivery - sources are applied before message processing
       await window.electronAPI.sendMessage(sessionId, message, processedAttachments, storedAttachments, {
         ultrathinkEnabled: isUltrathink,
         skillSlugs,
         badges: badges.length > 0 ? badges : undefined,
+        sourceSlugs,
       })
 
       // Auto-disable ultrathink after sending (single-shot activation)
