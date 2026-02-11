@@ -951,6 +951,13 @@ Returns a subscription ID that can be used to unsubscribe later.`,
             const subs = subscriptionRegistry.get(controllerSessionId)!;
             subs.set(subscriptionId, subscription);
 
+            // Send immediate notification if session is already in a subscribed state
+            if (events.has('idle') && !targetSession.isProcessing) {
+              sessionManager.sendMessage(controllerSessionId,
+                `[Session Notification] Session **${args.sessionId}** is already **idle**.`
+              ).catch(err => debug('Failed to send initial idle notification:', err));
+            }
+
             return {
               content: [{
                 type: 'text' as const,
