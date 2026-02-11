@@ -75,6 +75,16 @@ export function TelegramButton() {
     }
   }, [])
 
+  const handleReset = useCallback(async () => {
+    setLoading(true)
+    try {
+      const newStatus = await window.electronAPI.telegramClearToken()
+      setStatus(newStatus)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   const statusDotColor = status.running
     ? 'bg-success'
     : status.hasToken
@@ -181,16 +191,27 @@ export function TelegramButton() {
                   Stop
                 </Button>
               ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleStart}
-                  disabled={loading}
-                  className="flex-1 text-xs"
-                >
-                  {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Power className="h-3 w-3 mr-1" />}
-                  Start
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleStart}
+                    disabled={loading}
+                    className="flex-1 text-xs"
+                  >
+                    {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Power className="h-3 w-3 mr-1" />}
+                    Start
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleReset}
+                    disabled={loading}
+                    className="text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    Reset
+                  </Button>
+                </>
               )}
             </div>
           </div>

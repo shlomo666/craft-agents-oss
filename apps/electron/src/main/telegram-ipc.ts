@@ -60,6 +60,18 @@ export function registerTelegramHandlers(
     broadcastTelegramStatus(windowManager, status)
     return status
   })
+
+  // Clear token and stop - for "Reset" functionality
+  ipcMain.handle(IPC_CHANNELS.TELEGRAM_CLEAR_TOKEN, async () => {
+    await telegramService.stop()
+    const credManager = getCredentialManager()
+    await credManager.delete(TELEGRAM_CREDENTIAL_ID)
+    telegramService.clearTokenStatus()
+    telegramIpcLog.info('Telegram bot token cleared')
+    const status = telegramService.getStatus()
+    broadcastTelegramStatus(windowManager, status)
+    return status
+  })
 }
 
 function broadcastTelegramStatus(windowManager: WindowManager, status: import('../shared/types').TelegramStatusInfo): void {
