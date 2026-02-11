@@ -83,6 +83,8 @@ import { initNotificationService, clearBadgeCount, initBadgeIcon, initInstanceBa
 import { checkForUpdatesOnLaunch, setWindowManager as setAutoUpdateWindowManager, isUpdating } from './auto-update'
 import { TelegramService } from './telegram'
 import { registerTelegramHandlers, autoStartTelegram } from './telegram-ipc'
+import { MatrixService } from './matrix'
+import { registerMatrixHandlers, autoStartMatrix } from './matrix-ipc'
 
 // Initialize electron-log for renderer process support
 log.initialize()
@@ -101,6 +103,7 @@ const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'craftagents'
 let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
 let telegramService: TelegramService | null = null
+let matrixService: MatrixService | null = null
 
 // Store pending deep link if app not ready yet (cold start)
 let pendingDeepLink: string | null = null
@@ -276,6 +279,10 @@ app.whenReady().then(async () => {
     if (activeWorkspace) {
       telegramService = new TelegramService(sessionManager, activeWorkspace.rootPath)
       registerTelegramHandlers(telegramService, windowManager)
+
+      // Initialize Matrix service
+      matrixService = new MatrixService(sessionManager, activeWorkspace.rootPath)
+      registerMatrixHandlers(matrixService, windowManager)
     }
 
     // Create initial windows (restores from saved state or opens first workspace)
@@ -288,6 +295,13 @@ app.whenReady().then(async () => {
     if (telegramService) {
       autoStartTelegram(telegramService, windowManager).catch(err => {
         mainLog.error('Telegram auto-start failed:', err)
+      })
+    }
+
+    // Auto-start Matrix if credentials are configured
+    if (matrixService) {
+      autoStartMatrix(matrixService, windowManager).catch(err => {
+        mainLog.error('Matrix auto-start failed:', err)
       })
     }
 
@@ -391,6 +405,16 @@ app.on('before-quit', async (event) => {
       mainLog.info('Telegram bot stopped')
     } catch (error) {
       mainLog.error('Failed to stop Telegram bot:', error)
+    }
+  }
+
+  // Stop Matrix client before quitting
+  if (matrixService) {
+    try {
+      await matrixService.disconnect()
+      mainLog.info('Matrix client stopped')
+    } catch (error) {
+      mainLog.error('Failed to stop Matrix client:', error)
     }
   }
 

@@ -734,7 +734,15 @@ export const IPC_CHANNELS = {
   TELEGRAM_SET_TOKEN: 'telegram:setToken',
   TELEGRAM_START: 'telegram:start',
   TELEGRAM_STOP: 'telegram:stop',
+  TELEGRAM_CLEAR_TOKEN: 'telegram:clearToken',
   TELEGRAM_STATUS_CHANGED: 'telegram:statusChanged',  // main → renderer broadcast
+
+  // Matrix integration
+  MATRIX_GET_STATUS: 'matrix:getStatus',
+  MATRIX_CONNECT: 'matrix:connect',
+  MATRIX_DISCONNECT: 'matrix:disconnect',
+  MATRIX_CHECK_LOCAL: 'matrix:checkLocal',
+  MATRIX_STATUS_CHANGED: 'matrix:statusChanged',  // main → renderer broadcast
 } as const
 
 // Re-import types for ElectronAPI
@@ -1007,6 +1015,13 @@ export interface ElectronAPI {
   telegramStart(): Promise<TelegramStatusInfo>
   telegramStop(): Promise<void>
   onTelegramStatusChanged(callback: (status: TelegramStatusInfo) => void): () => void
+
+  // Matrix integration
+  matrixGetStatus(): Promise<MatrixStatusInfo>
+  matrixConnect(homeserver: string, accessToken: string): Promise<MatrixStatusInfo>
+  matrixDisconnect(): Promise<void>
+  matrixCheckLocal(): Promise<{ available: boolean; version?: string }>
+  onMatrixStatusChanged(callback: (status: MatrixStatusInfo) => void): () => void
 }
 
 /**
@@ -1016,6 +1031,18 @@ export interface TelegramStatusInfo {
   running: boolean
   botUsername: string | null
   hasToken: boolean
+  error: string | null
+}
+
+/**
+ * Matrix connection status info (shared between main and renderer)
+ */
+export interface MatrixStatusInfo {
+  connected: boolean
+  userId: string | null       // @user:server
+  homeserver: string | null
+  hasCredentials: boolean
+  localDetected: boolean      // localhost:8443 available
   error: string | null
 }
 

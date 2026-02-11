@@ -438,6 +438,7 @@ const api: ElectronAPI = {
   telegramSetToken: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_SET_TOKEN, token),
   telegramStart: () => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_START),
   telegramStop: () => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_STOP),
+  telegramClearToken: () => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_CLEAR_TOKEN),
   onTelegramStatusChanged: (callback: (status: import('../shared/types').TelegramStatusInfo) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, status: import('../shared/types').TelegramStatusInfo) => {
       callback(status)
@@ -445,6 +446,22 @@ const api: ElectronAPI = {
     ipcRenderer.on(IPC_CHANNELS.TELEGRAM_STATUS_CHANGED, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.TELEGRAM_STATUS_CHANGED, handler)
+    }
+  },
+
+  // Matrix integration
+  matrixGetStatus: () => ipcRenderer.invoke(IPC_CHANNELS.MATRIX_GET_STATUS),
+  matrixConnect: (homeserver: string, accessToken: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.MATRIX_CONNECT, homeserver, accessToken),
+  matrixDisconnect: () => ipcRenderer.invoke(IPC_CHANNELS.MATRIX_DISCONNECT),
+  matrixCheckLocal: () => ipcRenderer.invoke(IPC_CHANNELS.MATRIX_CHECK_LOCAL),
+  onMatrixStatusChanged: (callback: (status: import('../shared/types').MatrixStatusInfo) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: import('../shared/types').MatrixStatusInfo) => {
+      callback(status)
+    }
+    ipcRenderer.on(IPC_CHANNELS.MATRIX_STATUS_CHANGED, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.MATRIX_STATUS_CHANGED, handler)
     }
   },
 }

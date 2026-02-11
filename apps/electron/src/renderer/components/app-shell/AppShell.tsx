@@ -56,6 +56,7 @@ import {
 import { ContextMenuProvider } from "@/components/ui/menu-context"
 import { SidebarMenu } from "./SidebarMenu"
 import { TelegramButton } from "./TelegramButton"
+import { MatrixButton } from "./MatrixButton"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { FadingText } from "@/components/ui/fading-text"
 import {
@@ -1882,9 +1883,10 @@ function AppShellContent({
             <div className="flex h-full flex-col pt-[50px] select-none">
               {/* Sidebar Top Section */}
               <div className="flex-1 flex flex-col min-h-0">
-                {/* Telegram Bot + New Chat Buttons */}
+                {/* Messaging Integrations + New Chat Buttons */}
                 <div className="px-2 pt-1 pb-2 shrink-0 space-y-0.5">
                   <TelegramButton />
+                  <MatrixButton />
                   <ContextMenu modal={true}>
                     <ContextMenuTrigger asChild>
                       <Button
