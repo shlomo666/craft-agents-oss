@@ -1467,7 +1467,7 @@ export function getSessionState(sessionId: string): { permissionMode: Permission
  */
 export function formatSessionState(
   sessionId: string,
-  options?: { plansFolderPath?: string }
+  options?: { plansFolderPath?: string; memoryFilePath?: string }
 ): string {
   const mode = getPermissionMode(sessionId);
 
@@ -1478,6 +1478,11 @@ export function formatSessionState(
   // Always include plans folder path so agent knows where plans are stored
   if (options?.plansFolderPath) {
     result += `\nplansFolderPath: ${options.plansFolderPath}`;
+  }
+
+  // Include memory file path for session memory feature
+  if (options?.memoryFilePath) {
+    result += `\nmemoryFilePath: ${options.memoryFilePath}`;
   }
 
   result += '\n</session_state>';

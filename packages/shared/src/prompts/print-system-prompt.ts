@@ -99,9 +99,11 @@ printAnnotation('Added first to user message for prompt caching optimization');
 const sessionState = formatSessionState('260121-example-session', {
   plansFolderPath:
     '/Users/example/.craft-agent/workspaces/abc123/sessions/260121-example-session/plans',
+  memoryFilePath:
+    '/Users/example/.craft-agent/workspaces/abc123/sessions/260121-example-session/memory.md',
 });
 printSection('2. SESSION STATE - formatSessionState()', sessionState, colors.magenta);
-printAnnotation('Contains: sessionId, permissionMode, plansFolderPath');
+printAnnotation('Contains: sessionId, permissionMode, plansFolderPath, memoryFilePath');
 
 // 3. Source State (example - can't call formatSourceState without agent instance)
 const exampleSourceState = `<sources>

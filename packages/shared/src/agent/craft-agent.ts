@@ -39,7 +39,7 @@ import {
   SAFE_MODE_CONFIG,
 } from './mode-manager.ts';
 import { type PermissionsContext, permissionsConfigCache } from './permissions-config.ts';
-import { getSessionPlansPath, getSessionPath } from '../sessions/storage.ts';
+import { getSessionPlansPath, getSessionPath, getSessionMemoryPath } from '../sessions/storage.ts';
 import { readFileSync } from 'fs';
 import { expandPath } from '../utils/paths.ts';
 import {
@@ -409,6 +409,9 @@ export class CraftAgent {
   // Cached context window size from modelUsage (for real-time usage_update events)
   // This is captured from the first result message and reused for subsequent usage updates
   private cachedContextWindow?: number;
+  // Flag set when compact_boundary arrives - the summary comes in the NEXT user message
+  // The SDK emits compact_boundary first, then the user message with isCompactSummary:true
+  private awaitingCompactionSummary: boolean = false;
 
   /**
    * Get the session ID for mode operations.
@@ -903,11 +906,13 @@ export class CraftAgent {
           type: 'preset',
           preset: 'claude_code',
           // Working directory included for monorepo context file discovery
+          // Session ID included for session memory injection
           append: getSystemPrompt(
             this.pinnedPreferencesPrompt ?? undefined,
             this.config.debugMode,
             this.workspaceRootPath,
-            this.config.session?.workingDirectory
+            this.config.session?.workingDirectory,
+            this.modeSessionId
           ),
         },
         // Use sdkCwd for SDK session storage - this is set once at session creation and never changes.
@@ -2202,8 +2207,10 @@ Please continue the conversation naturally from where we left off.
     // Add session state (always includes all modes with true/false state)
     // This lightweight format replaces the verbose mode context
     // Include plans folder path so agent knows where to write plans in safe mode
+    // Include memory file path for session memory feature
     const plansFolderPath = getSessionPlansPath(this.workspaceRootPath, this.modeSessionId);
-    parts.push(formatSessionState(this.modeSessionId, { plansFolderPath }));
+    const memoryFilePath = getSessionMemoryPath(this.workspaceRootPath, this.modeSessionId);
+    parts.push(formatSessionState(this.modeSessionId, { plansFolderPath, memoryFilePath }));
 
     // Add source state (always included to inform agent about available sources)
     parts.push(this.formatSourceState());
@@ -2259,8 +2266,10 @@ Please continue the conversation naturally from where we left off.
     // Add session state (always includes all modes with true/false state)
     // This lightweight format replaces the verbose mode context
     // Include plans folder path so agent knows where to write plans in safe mode
+    // Include memory file path for session memory feature
     const plansFolderPath = getSessionPlansPath(this.workspaceRootPath, this.modeSessionId);
-    contentBlocks.push({ type: 'text', text: formatSessionState(this.modeSessionId, { plansFolderPath }) });
+    const memoryFilePathSdk = getSessionMemoryPath(this.workspaceRootPath, this.modeSessionId);
+    contentBlocks.push({ type: 'text', text: formatSessionState(this.modeSessionId, { plansFolderPath, memoryFilePath: memoryFilePathSdk }) });
 
     // Add source state (always included to inform agent about available sources)
     contentBlocks.push({ type: 'text', text: this.formatSourceState() });
@@ -2592,6 +2601,33 @@ Please continue the conversation naturally from where we left off.
         }
 
         // ─────────────────────────────────────────────────────────────────────────
+        // COMPACTION SUMMARY DETECTION
+        // ─────────────────────────────────────────────────────────────────────────
+        // The SDK emits compact_boundary FIRST, then the user message with isCompactSummary:true.
+        // When awaitingCompactionSummary is set, we emit the info event with the summary content.
+        if (this.awaitingCompactionSummary && 'isCompactSummary' in message && message.isCompactSummary === true) {
+          const msgContent = (message as { message?: { content?: unknown } }).message?.content;
+          if (typeof msgContent === 'string') {
+            events.push({
+              type: 'info',
+              message: msgContent,
+              statusType: 'compaction_complete',
+            });
+            this.onDebug?.(`Emitted compaction summary (${msgContent.length} chars)`);
+          } else {
+            // Fallback if content is not a string
+            events.push({
+              type: 'info',
+              message: 'Compacted Conversation',
+              statusType: 'compaction_complete',
+            });
+            this.onDebug?.('Emitted compaction fallback (content was not a string)');
+          }
+          this.awaitingCompactionSummary = false;
+          break; // Don't process this as a regular user message
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
         // STATELESS TOOL RESULT MATCHING
         // ─────────────────────────────────────────────────────────────────────────
         // Uses extractToolResults() which matches results by explicit tool_use_id
@@ -2735,10 +2771,10 @@ Please continue the conversation naturally from where we left off.
             this.onDebug?.(`SDK init: captured ${this.sdkTools.length} tools`);
           }
         } else if (message.subtype === 'compact_boundary') {
-          events.push({
-            type: 'info',
-            message: 'Compacted Conversation',
-          });
+          // The summary arrives in the NEXT user message (with isCompactSummary:true)
+          // Set flag to capture it when it arrives
+          this.awaitingCompactionSummary = true;
+          this.onDebug?.('compact_boundary: waiting for summary in next user message');
         } else if (message.subtype === 'status' && message.status === 'compacting') {
           events.push({ type: 'status', message: 'Compacting conversation...' });
         }
