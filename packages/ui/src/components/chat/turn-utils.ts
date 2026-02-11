@@ -460,6 +460,7 @@ export function groupMessagesByTurn(messages: Message[]): Turn[] {
     }
 
     // Info messages with compaction_complete update the matching status activity
+    // If there's no compacting status to update, fall through to create a system turn
     if (message.role === 'info' && message.statusType === 'compaction_complete') {
       if (currentTurn) {
         const statusIdx = currentTurn.activities.findIndex(
@@ -472,9 +473,10 @@ export function groupMessagesByTurn(messages: Message[]): Turn[] {
             status: 'completed',
             content: message.content,
           }
+          continue  // Updated existing status, don't create separate turn
         }
       }
-      continue  // Don't create a separate system turn
+      // No compacting status to update - fall through to create system turn
     }
 
     // Error/info/warning messages are standalone
