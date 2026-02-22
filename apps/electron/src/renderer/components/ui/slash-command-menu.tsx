@@ -175,15 +175,26 @@ function filterSections(sections: SlashSection[], filter: string): SlashSection[
   if (!filter) return sections
   const lowerFilter = filter.toLowerCase()
 
+  // Helper to check if item matches filter (label/id only, not description)
+  const matchesFilter = (item: SlashCommand | SlashFolderItem | SlashSdkItem) =>
+    item.label.toLowerCase().includes(lowerFilter) ||
+    item.id.toLowerCase().includes(lowerFilter)
+
   // Filter items within each section, keeping section structure
+  // Sort so exact prefix matches come first (e.g., "com" matches "compact" before "complex")
   return sections
     .map(section => ({
       ...section,
-      items: section.items.filter(item =>
-        item.label.toLowerCase().includes(lowerFilter) ||
-        item.id.toLowerCase().includes(lowerFilter) ||
-        item.description?.toLowerCase().includes(lowerFilter)
-      ),
+      items: section.items
+        .filter(matchesFilter)
+        .sort((a, b) => {
+          // Prioritize items where label starts with the filter
+          const aStartsWithLabel = a.label.toLowerCase().startsWith(lowerFilter)
+          const bStartsWithLabel = b.label.toLowerCase().startsWith(lowerFilter)
+          if (aStartsWithLabel && !bStartsWithLabel) return -1
+          if (!aStartsWithLabel && bStartsWithLabel) return 1
+          return 0
+        }),
     }))
     .filter(section => section.items.length > 0)
 }

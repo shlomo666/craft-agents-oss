@@ -1155,17 +1155,25 @@ export function FreeFormInput({
     richInputRef.current?.focus()
   }, [inlineSlash, syncToParent])
 
-  // Handle inline SDK command selection (submits command as message)
+  // Handle inline SDK command selection (inserts command into input, consistent with @mentions)
   const handleInlineSlashSdkCommandSelect = React.useCallback((command: string) => {
-    inlineSlash.handleSelectSdkCommand(command)
-    // Clear input and submit the command
-    setInput('')
-    setAttachments([])
-    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
-    onInputChange?.('')
-    prevInputValueRef.current = ''
-    requestAnimationFrame(() => richInputRef.current?.focus())
-  }, [inlineSlash, onInputChange])
+    // Replace the partial "/com" with the full "/compact " (with trailing space for additional args)
+    const partialCommand = '/' + inlineSlash.filter
+    const insertedCommand = command + ' '
+    const partialIndex = input.indexOf(partialCommand)
+    const newValue = input.replace(partialCommand, insertedCommand)
+
+    setInput(newValue)
+    syncToParent(newValue)
+    inlineSlash.close()
+
+    // Focus input and position cursor at end of inserted command
+    setTimeout(() => {
+      richInputRef.current?.focus()
+      const cursorPos = partialIndex >= 0 ? partialIndex + insertedCommand.length : newValue.length
+      richInputRef.current?.setSelectionRange(cursorPos, cursorPos)
+    }, 0)
+  }, [input, inlineSlash, syncToParent])
 
   // Handle inline mention selection (inserts appropriate mention text)
   const handleInlineMentionSelect = React.useCallback((item: MentionItem) => {
