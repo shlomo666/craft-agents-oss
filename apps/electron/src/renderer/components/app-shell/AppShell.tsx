@@ -24,6 +24,7 @@ import {
   FolderOpen,
   HelpCircle,
   ExternalLink,
+  Timer,
 } from "lucide-react"
 import { PanelRightRounded } from "../icons/PanelRightRounded"
 import { PanelLeftRounded } from "../icons/PanelLeftRounded"
@@ -86,6 +87,7 @@ import { type TodoStateId, type TodoState, statusConfigsToTodoStates } from "@/c
 import { useStatuses } from "@/hooks/useStatuses"
 import { useLabels } from "@/hooks/useLabels"
 import { useViews } from "@/hooks/useViews"
+import { useTasks } from "@/hooks/useTasks"
 import { LabelIcon, LabelValueTypeIcon } from "@/components/ui/label-icon"
 import { filterItems as filterLabelMenuItems, filterStates as filterLabelMenuStates, type LabelMenuItem } from "@/components/ui/label-menu"
 import { buildLabelTree, getDescendantIds, getLabelDisplayName, flattenLabels, extractLabelId, findLabelById } from "@craft-agent/shared/labels"
@@ -843,6 +845,9 @@ function AppShellContent({
 
   // Views: compiled once on config load, evaluated per session in list/chat
   const { evaluateSession: evaluateViews, viewConfigs } = useViews(activeWorkspace?.id || null)
+
+  // Load scheduled tasks from workspace config
+  const { tasks: scheduledTasks } = useTasks(activeWorkspace?.id || null)
 
   // Build hierarchical label tree from nested config structure
   const labelTree = useMemo(() => buildLabelTree(labelConfigs), [labelConfigs])
@@ -2051,6 +2056,23 @@ function AppShellContent({
                         type: 'skills',
                         onAddSkill: openAddSkill,
                       },
+                    },
+                    // --- Scheduled Tasks ---
+                    {
+                      id: "nav:tasks",
+                      title: "Tasks",
+                      label: scheduledTasks.length > 0 ? String(scheduledTasks.length) : undefined,
+                      icon: Timer,
+                      variant: "ghost" as const,
+                      expandable: true,
+                      expanded: isExpanded('nav:tasks'),
+                      onToggle: () => toggleExpanded('nav:tasks'),
+                      items: scheduledTasks.map(task => ({
+                        id: `nav:task:${task.id}`,
+                        title: task.name,
+                        icon: task.enabled ? CheckCircle2 : X,
+                        variant: "ghost" as const,
+                      })),
                     },
                     // --- Separator ---
                     { id: "separator:skills-settings", type: "separator" },

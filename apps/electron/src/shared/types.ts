@@ -50,6 +50,17 @@ export type { LoadedSource, FolderSourceConfig, SourceConnectionStatus };
 import type { LoadedSkill, SkillMetadata } from '@craft-agent/shared/skills/types';
 export type { LoadedSkill, SkillMetadata };
 
+// Import task types
+import type {
+  ScheduledTask,
+  TaskWithState,
+  TaskState,
+  TaskSchedulerEvent,
+  CreateTaskInput,
+  UpdateTaskInput,
+} from '@craft-agent/shared/tasks';
+export type { ScheduledTask, TaskWithState, TaskState, TaskSchedulerEvent, CreateTaskInput, UpdateTaskInput };
+
 
 /**
  * File/directory entry in a skill folder
@@ -735,6 +746,18 @@ export const IPC_CHANNELS = {
   TELEGRAM_START: 'telegram:start',
   TELEGRAM_STOP: 'telegram:stop',
   TELEGRAM_STATUS_CHANGED: 'telegram:statusChanged',  // main → renderer broadcast
+
+
+  // Scheduled Tasks
+  TASKS_LIST: 'tasks:list',
+  TASKS_CREATE: 'tasks:create',
+  TASKS_UPDATE: 'tasks:update',
+  TASKS_DELETE: 'tasks:delete',
+  TASKS_RUN: 'tasks:run',
+  TASKS_GET_STATE: 'tasks:getState',
+  TASKS_TOGGLE: 'tasks:toggle',
+  TASKS_CHANGED: 'tasks:changed',  // Broadcast event
+  TASK_EVENT: 'task:event',  // Broadcast: task execution events
 } as const
 
 // Re-import types for ElectronAPI
@@ -1007,6 +1030,18 @@ export interface ElectronAPI {
   telegramStart(): Promise<TelegramStatusInfo>
   telegramStop(): Promise<void>
   onTelegramStatusChanged(callback: (status: TelegramStatusInfo) => void): () => void
+
+
+  // Scheduled Tasks
+  tasksList(workspaceId: string): Promise<TaskWithState[]>
+  tasksCreate(workspaceId: string, input: CreateTaskInput): Promise<ScheduledTask>
+  tasksUpdate(workspaceId: string, taskId: string, input: UpdateTaskInput): Promise<ScheduledTask | null>
+  tasksDelete(workspaceId: string, taskId: string): Promise<boolean>
+  tasksRun(workspaceId: string, taskId: string): Promise<void>
+  tasksGetState(workspaceId: string, taskId: string): Promise<TaskState | null>
+  tasksToggle(workspaceId: string, taskId: string, enabled: boolean): Promise<ScheduledTask | null>
+  onTasksChanged(callback: () => void): () => void
+  onTaskEvent(callback: (event: TaskSchedulerEvent) => void): () => void
 }
 
 /**

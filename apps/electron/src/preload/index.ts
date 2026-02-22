@@ -447,6 +447,43 @@ const api: ElectronAPI = {
       ipcRenderer.removeListener(IPC_CHANNELS.TELEGRAM_STATUS_CHANGED, handler)
     }
   },
+
+      callback(status)
+    }
+    return () => {
+    }
+  },
+
+  // Scheduled Tasks
+  tasksList: (workspaceId: string) => ipcRenderer.invoke(IPC_CHANNELS.TASKS_LIST, workspaceId),
+  tasksCreate: (workspaceId: string, input: import('../shared/types').CreateTaskInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASKS_CREATE, workspaceId, input),
+  tasksUpdate: (workspaceId: string, taskId: string, input: import('../shared/types').UpdateTaskInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASKS_UPDATE, workspaceId, taskId, input),
+  tasksDelete: (workspaceId: string, taskId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASKS_DELETE, workspaceId, taskId),
+  tasksRun: (workspaceId: string, taskId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASKS_RUN, workspaceId, taskId),
+  tasksGetState: (workspaceId: string, taskId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASKS_GET_STATE, workspaceId, taskId),
+  tasksToggle: (workspaceId: string, taskId: string, enabled: boolean) =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASKS_TOGGLE, workspaceId, taskId, enabled),
+  onTasksChanged: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on(IPC_CHANNELS.TASKS_CHANGED, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.TASKS_CHANGED, handler)
+    }
+  },
+  onTaskEvent: (callback: (event: import('../shared/types').TaskSchedulerEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, taskEvent: import('../shared/types').TaskSchedulerEvent) => {
+      callback(taskEvent)
+    }
+    ipcRenderer.on(IPC_CHANNELS.TASK_EVENT, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.TASK_EVENT, handler)
+    }
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

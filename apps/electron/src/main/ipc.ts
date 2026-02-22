@@ -9,6 +9,31 @@ import { SessionManager } from './sessions'
 import { ipcLog, windowLog } from './logger'
 import { WindowManager } from './window-manager'
 import { registerOnboardingHandlers } from './onboarding'
+import type { TaskScheduler } from './task-scheduler'
+
+// Module-level task scheduler reference (set via setTaskScheduler)
+let taskScheduler: TaskScheduler | null = null
+
+/**
+ * Set the task scheduler instance for IPC handlers
+ * Called from index.ts after TaskScheduler is created
+ */
+export function setTaskScheduler(scheduler: TaskScheduler): void {
+  taskScheduler = scheduler
+}
+
+/**
+ * Broadcast an event to all open windows
+ */
+function broadcastToAllWindows(channel: string, data: unknown): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed() &&
+        !window.webContents.isDestroyed() &&
+        window.webContents.mainFrame) {
+      window.webContents.send(channel, data)
+    }
+  }
+}
 import { IPC_CHANNELS, type FileAttachment, type StoredAttachment, type AuthType, type ApiSetupInfo, type SendMessageOptions } from '../shared/types'
 import { readFileAttachment, perf, validateImageForClaudeAPI, IMAGE_LIMITS } from '@craft-agent/shared/utils'
 import { getAuthType, setAuthType, getPreferencesPath, getCustomModel, setCustomModel, getModel, setModel, getSessionDraft, setSessionDraft, deleteSessionDraft, getAllSessionDrafts, getWorkspaceByNameOrId, addWorkspace, setActiveWorkspace, getAnthropicBaseUrl, setAnthropicBaseUrl, loadStoredConfig, saveConfig, type Workspace, SUMMARIZATION_MODEL } from '@craft-agent/shared/config'
@@ -2425,5 +2450,101 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
 
   // Note: Permission mode cycling settings (cyclablePermissionModes) are now workspace-level
   // and managed via WORKSPACE_SETTINGS_GET/UPDATE channels
+
+  // ─── Scheduled Tasks ─────────────────────────────────────────────────
+
+  // List all tasks with state for a workspace
+  ipcMain.handle(IPC_CHANNELS.TASKS_LIST, async (_event, workspaceId: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { listTasksWithState } = await import('@craft-agent/shared/tasks')
+    return listTasksWithState(workspace.rootPath)
+  })
+
+  // Create a new task
+  ipcMain.handle(IPC_CHANNELS.TASKS_CREATE, async (_event, workspaceId: string, input: any) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { createTask } = await import('@craft-agent/shared/tasks')
+    const task = createTask(workspace.rootPath, input)
+
+    // Notify task scheduler to register the new task
+    taskScheduler?.reloadWorkspaceTasks(workspace.rootPath)
+
+    // Broadcast change to all windows
+    broadcastToAllWindows(IPC_CHANNELS.TASKS_CHANGED, { workspaceId })
+
+    return task
+  })
+
+  // Update a task
+  ipcMain.handle(IPC_CHANNELS.TASKS_UPDATE, async (_event, workspaceId: string, taskId: string, input: any) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { updateTask } = await import('@craft-agent/shared/tasks')
+    const task = updateTask(workspace.rootPath, taskId, input)
+
+    // Notify task scheduler to reload tasks
+    taskScheduler?.reloadWorkspaceTasks(workspace.rootPath)
+
+    // Broadcast change to all windows
+    broadcastToAllWindows(IPC_CHANNELS.TASKS_CHANGED, { workspaceId })
+
+    return task
+  })
+
+  // Delete a task
+  ipcMain.handle(IPC_CHANNELS.TASKS_DELETE, async (_event, workspaceId: string, taskId: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { deleteTask } = await import('@craft-agent/shared/tasks')
+    const success = deleteTask(workspace.rootPath, taskId)
+
+    // Notify task scheduler to unregister the task
+    taskScheduler?.unregisterTask(taskId)
+
+    // Broadcast change to all windows
+    broadcastToAllWindows(IPC_CHANNELS.TASKS_CHANGED, { workspaceId })
+
+    return success
+  })
+
+  // Run a task manually
+  ipcMain.handle(IPC_CHANNELS.TASKS_RUN, async (_event, workspaceId: string, taskId: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    await taskScheduler?.runTask(taskId, workspace.rootPath)
+  })
+
+  // Get task state
+  ipcMain.handle(IPC_CHANNELS.TASKS_GET_STATE, async (_event, workspaceId: string, taskId: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { getTaskState } = await import('@craft-agent/shared/tasks')
+    return getTaskState(workspace.rootPath, taskId)
+  })
+
+  // Toggle task enabled state
+  ipcMain.handle(IPC_CHANNELS.TASKS_TOGGLE, async (_event, workspaceId: string, taskId: string, enabled: boolean) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { toggleTask } = await import('@craft-agent/shared/tasks')
+    const task = toggleTask(workspace.rootPath, taskId, enabled)
+
+    // Notify task scheduler to reload tasks
+    taskScheduler?.reloadWorkspaceTasks(workspace.rootPath)
+
+    // Broadcast change to all windows
+    broadcastToAllWindows(IPC_CHANNELS.TASKS_CHANGED, { workspaceId })
+
+    return task
+  })
 
 }
