@@ -88,7 +88,9 @@ export class TelegramService {
     this.status.error = null
 
     try {
-      this.bot = new Bot(token)
+      // Use native fetch instead of node-fetch (node-fetch breaks when bundled in Electron)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.bot = new Bot(token, { client: { fetch: fetch as any } })
 
       // Register message handler
       this.bot.on('message:text', async (ctx) => {
@@ -118,8 +120,17 @@ export class TelegramService {
       this.status.running = true
       return this.getStatus()
     } catch (err: unknown) {
+      // Log full error details for debugging
+      if (err instanceof Error) {
+        telegramLog.error('Failed to start Telegram bot:', err.message)
+        telegramLog.error('Error stack:', err.stack)
+        if ('cause' in err && err.cause) {
+          telegramLog.error('Error cause:', err.cause)
+        }
+      } else {
+        telegramLog.error('Failed to start Telegram bot:', String(err))
+      }
       const message = err instanceof Error ? err.message : String(err)
-      telegramLog.error('Failed to start Telegram bot:', message)
       this.status.error = message
       this.status.running = false
       this.bot = null

@@ -28,14 +28,12 @@ export function TelegramButton() {
   const [showToken, setShowToken] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  // Fetch initial status
-  useEffect(() => {
-    window.electronAPI.telegramGetStatus().then(setStatus)
-  }, [])
-
-  // Listen for status changes
+  // Listen for status changes and fetch initial status
+  // (Combined to avoid race condition where broadcast happens between separate effects)
   useEffect(() => {
     const unsubscribe = window.electronAPI.onTelegramStatusChanged(setStatus)
+    // Fetch current status after listener is registered
+    window.electronAPI.telegramGetStatus().then(setStatus)
     return unsubscribe
   }, [])
 
