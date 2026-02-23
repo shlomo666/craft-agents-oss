@@ -449,12 +449,6 @@ const api: ElectronAPI = {
     }
   },
 
-      callback(status)
-    }
-    return () => {
-    }
-  },
-
   // Scheduled Tasks
   tasksList: (workspaceId: string) => ipcRenderer.invoke(IPC_CHANNELS.TASKS_LIST, workspaceId),
   tasksCreate: (workspaceId: string, input: import('../shared/types').CreateTaskInput) =>
