@@ -66,38 +66,32 @@ export async function generateSessionTitle(
 }
 
 /**
- * Regenerate a session title based on recent messages.
- * Uses the most recent user messages to capture what the session has evolved into,
- * rather than just the initial topic.
+ * Regenerate a session title based on conversation history.
+ * Uses up to 50 recent user and assistant text messages to understand
+ * what the session is actually about.
  *
- * @param recentUserMessages - The last few user messages (most recent context)
- * @param lastAssistantResponse - The most recent assistant response
- * @returns Generated title reflecting current session focus, or null if generation fails
+ * @param messages - Recent conversation messages (user and assistant text only, no tool calls)
+ * @returns Generated title reflecting session topic, or null if generation fails
  */
 export async function regenerateSessionTitle(
-  recentUserMessages: string[],
-  lastAssistantResponse: string
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>
 ): Promise<string | null> {
   try {
-    // Combine recent user messages, taking up to 300 chars from each
-    const userContext = recentUserMessages
-      .map((msg) => msg.slice(0, 300))
-      .join('\n\n');
-    const assistantSnippet = lastAssistantResponse.slice(0, 500);
+    // Format conversation as "User: ...\nAssistant: ..."
+    const conversation = messages
+      .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      .join('\n');
 
     const prompt = [
-      'Based on these recent messages, what is the current focus of this conversation?',
-      'Reply with ONLY a short task description (2-5 words).',
+      'What is the main topic of this conversation?',
+      'Reply with ONLY a short description (2-5 words).',
       'Start with a verb. Use plain text only - no markdown.',
       'Examples: "Fix authentication bug", "Add dark mode", "Refactor API layer", "Explain codebase structure"',
       '',
-      'Recent user messages:',
-      userContext,
+      'Conversation:',
+      conversation,
       '',
-      'Latest assistant response:',
-      assistantSnippet,
-      '',
-      'Current focus:',
+      'Topic:',
     ].join('\n');
 
     const defaultOptions = getDefaultOptions();

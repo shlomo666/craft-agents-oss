@@ -2265,25 +2265,26 @@ export class SessionManager {
       return { success: false, error: 'Session not found' }
     }
 
-    // Get recent user messages (last 3) for context
-    const userMessages = managed.messages
-      .filter((m) => m.role === 'user')
-      .slice(-3)
-      .map((m) => m.content)
+    // Get last 50 user + assistant text messages (no tool calls, no intermediate)
+    const conversationMessages = managed.messages
+      .filter(
+        (m) =>
+          m.role === 'user' ||
+          (m.role === 'assistant' && !m.toolName && !m.isIntermediate)
+      )
+      .slice(-50)
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content.slice(0, 500),
+      }))
 
-    sessionLog.info(`refreshTitle: Found ${userMessages.length} user messages`)
+    sessionLog.info(`refreshTitle: Found ${conversationMessages.length} conversation messages`)
 
-    if (userMessages.length === 0) {
-      sessionLog.warn(`refreshTitle: No user messages found`)
-      return { success: false, error: 'No user messages to generate title from' }
+    if (conversationMessages.length === 0) {
+      sessionLog.warn(`refreshTitle: No conversation messages found`)
+      return { success: false, error: 'No messages to generate title from' }
     }
 
-    // Get the most recent assistant response
-    const lastAssistantMsg = managed.messages
-      .filter((m) => m.role === 'assistant' && !m.isIntermediate)
-      .slice(-1)[0]
-
-    const assistantResponse = lastAssistantMsg?.content ?? ''
     sessionLog.info(`refreshTitle: Calling regenerateSessionTitle...`)
 
     // Notify renderer that title regeneration has started (for shimmer effect)
@@ -2293,7 +2294,7 @@ export class SessionManager {
     this.sendEvent({ type: 'title_regenerating', sessionId, isRegenerating: true }, managed.workspace.id)
 
     try {
-      const title = await regenerateSessionTitle(userMessages, assistantResponse)
+      const title = await regenerateSessionTitle(conversationMessages)
       sessionLog.info(`refreshTitle: regenerateSessionTitle returned: ${title ? `"${title}"` : 'null'}`)
       if (title) {
         managed.name = title
