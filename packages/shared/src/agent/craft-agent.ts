@@ -2603,9 +2603,9 @@ Please continue the conversation naturally from where we left off.
         // ─────────────────────────────────────────────────────────────────────────
         // COMPACTION SUMMARY DETECTION
         // ─────────────────────────────────────────────────────────────────────────
-        // The SDK emits compact_boundary FIRST, then the user message with isCompactSummary:true.
+        // The SDK emits compact_boundary FIRST, then the NEXT user message contains the summary.
         // When awaitingCompactionSummary is set, we emit the info event with the summary content.
-        if (this.awaitingCompactionSummary && 'isCompactSummary' in message && message.isCompactSummary === true) {
+        if (this.awaitingCompactionSummary) {
           const msgContent = (message as { message?: { content?: unknown } }).message?.content;
           if (typeof msgContent === 'string') {
             events.push({
@@ -2771,7 +2771,7 @@ Please continue the conversation naturally from where we left off.
             this.onDebug?.(`SDK init: captured ${this.sdkTools.length} tools`);
           }
         } else if (message.subtype === 'compact_boundary') {
-          // The summary arrives in the NEXT user message (with isCompactSummary:true)
+          // The summary arrives in the NEXT user message
           // Set flag to capture it when it arrives
           this.awaitingCompactionSummary = true;
           this.onDebug?.('compact_boundary: waiting for summary in next user message');
