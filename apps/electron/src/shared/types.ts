@@ -745,6 +745,7 @@ export const IPC_CHANNELS = {
   TELEGRAM_SET_TOKEN: 'telegram:setToken',
   TELEGRAM_START: 'telegram:start',
   TELEGRAM_STOP: 'telegram:stop',
+  TELEGRAM_CLEAR_TOKEN: 'telegram:clearToken',
   TELEGRAM_STATUS_CHANGED: 'telegram:statusChanged',  // main → renderer broadcast
 
 

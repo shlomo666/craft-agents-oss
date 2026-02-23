@@ -438,6 +438,7 @@ const api: ElectronAPI = {
   telegramSetToken: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_SET_TOKEN, token),
   telegramStart: () => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_START),
   telegramStop: () => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_STOP),
+  telegramClearToken: () => ipcRenderer.invoke(IPC_CHANNELS.TELEGRAM_CLEAR_TOKEN),
   onTelegramStatusChanged: (callback: (status: import('../shared/types').TelegramStatusInfo) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, status: import('../shared/types').TelegramStatusInfo) => {
       callback(status)
