@@ -84,7 +84,7 @@ export function TelegramButton() {
   }, [])
 
   const statusDotColor = status.running
-    ? 'bg-success'
+    ? 'bg-success shadow-[0_0_6px_var(--success)]'
     : status.hasToken
       ? status.error ? 'bg-destructive' : 'bg-foreground/40'
       : 'bg-transparent'
@@ -99,15 +99,7 @@ export function TelegramButton() {
           <TelegramIcon className="h-3.5 w-3.5 shrink-0" />
           Telegram
           {status.hasToken && (
-            <span className="ml-auto relative inline-flex shrink-0">
-              {status.running && (
-                <span
-                  className="absolute inline-flex rounded-full opacity-75 animate-ping bg-success h-1.5 w-1.5"
-                  style={{ animationDuration: '2s' }}
-                />
-              )}
-              <span className={cn('relative inline-flex rounded-full h-1.5 w-1.5', statusDotColor)} />
-            </span>
+            <span className={cn('ml-auto inline-flex rounded-full h-1.5 w-1.5 shrink-0', statusDotColor)} />
           )}
         </Button>
       </PopoverTrigger>
@@ -157,8 +149,8 @@ export function TelegramButton() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <span className={cn(
-                'relative inline-flex rounded-full h-2 w-2',
-                status.running ? 'bg-success' : status.error ? 'bg-destructive' : 'bg-foreground/40'
+                'inline-flex rounded-full h-2 w-2',
+                status.running ? 'bg-success shadow-[0_0_6px_var(--success)]' : status.error ? 'bg-destructive' : 'bg-foreground/40'
               )} />
               <span className="text-sm font-medium">
                 {status.running
