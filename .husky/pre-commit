@@ -1,0 +1,21 @@
+#!/bin/sh
+
+echo "🔍 Running pre-commit checks..."
+
+# TypeScript type checking (this catches syntax errors and type issues)
+echo "→ Running typecheck..."
+bun run typecheck:all
+if [ $? -ne 0 ]; then
+  echo "❌ Typecheck failed. Fix errors before committing."
+  exit 1
+fi
+
+# Lint electron app
+echo "→ Running lint..."
+bun run lint:electron
+if [ $? -ne 0 ]; then
+  echo "❌ Lint failed. Fix errors before committing."
+  exit 1
+fi
+
+echo "✅ All pre-commit checks passed!"
