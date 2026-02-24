@@ -1114,21 +1114,8 @@ export function FreeFormInput({
     // Update inline label state (for #labels)
     inlineLabel.handleInputChange(value, cursorPosition)
 
-    // Auto-capitalize first letter (but not for slash commands, @mentions, or #labels)
-    let newValue = value
-    if (value.length > 0 && value.charAt(0) !== '/' && value.charAt(0) !== '@' && value.charAt(0) !== '#') {
-      const capitalizedFirst = value.charAt(0).toUpperCase()
-      if (capitalizedFirst !== value.charAt(0)) {
-        newValue = capitalizedFirst + value.slice(1)
-        // Set cursor position BEFORE state update so it's used when useEffect syncs the value
-        richInputRef.current?.setSelectionRange(cursorPosition, cursorPosition)
-        setInput(newValue)
-        syncToParent(newValue)
-        return
-      }
-    }
-
     // Apply smart typography (-> to →, etc.)
+    let newValue = value
     const typography = applySmartTypography(value, cursorPosition)
     if (typography.replaced) {
       newValue = typography.text
