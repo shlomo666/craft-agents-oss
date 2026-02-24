@@ -57,7 +57,7 @@ export default function WorkspaceSettingsPage() {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const [wsIconUrl, setWsIconUrl] = useState<string | null>(null)
   const [isUploadingIcon, setIsUploadingIcon] = useState(false)
-  const [wsModel, setWsModel] = useState('claude-sonnet-4-5-20250929')
+  const [wsModel, setWsModel] = useState('claude-sonnet-4-6')
   const [wsThinkingLevel, setWsThinkingLevel] = useState<ThinkingLevel>(DEFAULT_THINKING_LEVEL)
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('ask')
   const [workingDirectory, setWorkingDirectory] = useState('')
@@ -82,7 +82,7 @@ export default function WorkspaceSettingsPage() {
         if (settings) {
           setWsName(settings.name || '')
           setWsNameEditing(settings.name || '')
-          setWsModel(settings.model || 'claude-sonnet-4-5-20250929')
+          setWsModel(settings.model || 'claude-sonnet-4-6')
           setWsThinkingLevel(settings.thinkingLevel || DEFAULT_THINKING_LEVEL)
           setPermissionMode(settings.permissionMode || 'ask')
           setWorkingDirectory(settings.workingDirectory || '')
@@ -411,7 +411,7 @@ export default function WorkspaceSettingsPage() {
                     onValueChange={handleModelChange}
                     options={[
                       { value: 'claude-opus-4-6', label: 'Opus 4.6', description: 'Most capable for complex work' },
-                      { value: 'claude-sonnet-4-5-20250929', label: 'Sonnet 4.5', description: 'Best for everyday tasks' },
+                      { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6', description: 'Best for everyday tasks' },
                       { value: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', description: 'Fastest for quick answers' },
                     ]}
                   />
