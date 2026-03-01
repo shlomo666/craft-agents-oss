@@ -1612,6 +1612,37 @@ export class CraftAgent {
             (id) => { currentTurnId = id; }
           );
           for (const event of events) {
+            // Check for session-related errors during resume - retry with fresh session
+            // SDK event errors (message.error) bypass the catch block, so we handle them here
+            if (
+              event.type === 'typed_error' &&
+              event.error.code === 'unknown_error' &&
+              event.error.title === 'Invalid Request' &&
+              wasResuming &&
+              !_isRetry
+            ) {
+              debug('[SESSION_DEBUG] >>> DETECTED invalid_request error during resume - triggering retry');
+              console.error('[CraftAgent] Invalid request during session resume - clearing session and retrying');
+
+              // Clear stale session
+              this.sessionId = null;
+              this.config.onSdkSessionIdCleared?.();
+              // Clear pinned state for fresh start
+              this.pinnedPreferencesPrompt = null;
+              this.preferencesDriftNotified = false;
+
+              // Build recovery context from previous messages to inject into retry
+              const recoveryContext = this.buildRecoveryContext();
+              const messageWithContext = recoveryContext
+                ? recoveryContext + userMessage
+                : userMessage;
+
+              yield { type: 'info', message: 'Session expired, restoring context...' };
+              // Retry with fresh session, injecting conversation history into the message
+              yield* this.chat(messageWithContext, attachments, true);
+              return;
+            }
+
             // Check for tool-not-found errors on inactive sources and attempt auto-activation
             const inactiveSourceError = this.detectInactiveSourceToolError(event, toolIndex);
 
@@ -1855,13 +1886,22 @@ export class CraftAgent {
             console.error('[CraftAgent] SDK session expired server-side, clearing and retrying fresh');
             debug('[CraftAgent] SDK session expired server-side, clearing and retrying fresh');
             this.sessionId = null;
+            // Notify that we're clearing the session ID (for persistence)
+            this.config.onSdkSessionIdCleared?.();
             // Clear pinned state so retry captures fresh values
             this.pinnedPreferencesPrompt = null;
             this.preferencesDriftNotified = false;
+
+            // Build recovery context from previous messages to inject into retry
+            const recoveryContext = this.buildRecoveryContext();
+            const messageWithContext = recoveryContext
+              ? recoveryContext + userMessage
+              : userMessage;
+
             // Use 'info' instead of 'status' to show message without spinner
             yield { type: 'info', message: 'Session expired, restoring context...' };
             // Recursively call with isRetry=true (yield* delegates all events)
-            yield* this.chat(userMessage, attachments, true);
+            yield* this.chat(messageWithContext, attachments, true);
             return;
           }
 
